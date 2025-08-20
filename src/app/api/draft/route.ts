@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { generateArticleDraft } from '@/lib/openai'
+import { generateArticleDraft, generateOutlineAndMeta, generateArticleContent } from '@/lib/openai'
+import { ArticleType } from '@/types'
 
 export async function POST(req: NextRequest) {
   try {
-    const { projectId } = await req.json()
+    const { projectId, articleType, language }: { 
+      projectId: string; 
+      articleType?: ArticleType; 
+      language?: 'ja' | 'en' 
+    } = await req.json()
     
     if (!projectId) {
       return NextResponse.json(
@@ -39,18 +44,30 @@ export async function POST(req: NextRequest) {
     const latestTranscription = project.transcriptions.find(t => t.audioUrl === 'combined-interview') || project.transcriptions[0]
     const transcription = latestTranscription.text
     
-    // Use summary if available, otherwise use transcription directly
-    const summary = project.summaries.length > 0 ? project.summaries[0].content : transcription
-    
     console.log('Generating article for project:', projectId)
     console.log('Theme:', project.theme)
     console.log('Interviewee:', project.interviewee)
-    
-    const articleContent = await generateArticleDraft(
+    console.log('Article Type:', articleType || 'BLOG_POST')
+
+    const selectedArticleType: ArticleType = articleType || 'BLOG_POST'
+    const selectedLanguage: 'ja' | 'en' = language || 'ja'
+
+    // Generate outline and meta based on article type
+    const { outline, meta } = await generateOutlineAndMeta(
+      selectedArticleType,
       project.theme,
       project.interviewee,
-      summary,
-      transcription
+      transcription,
+      selectedLanguage
+    )
+
+    // Generate article content based on outline and meta
+    const articleContent = await generateArticleContent(
+      selectedArticleType,
+      project.theme,
+      outline,
+      meta,
+      selectedLanguage
     )
     
     if (!articleContent || articleContent.trim() === '') {
@@ -64,7 +81,12 @@ export async function POST(req: NextRequest) {
       data: {
         title: `${project.interviewee}氏インタビュー：${project.theme}について`,
         content: articleContent.trim(),
-        format: 'text',
+        format: 'markdown',
+        articleType: selectedArticleType,
+        language: selectedLanguage,
+        status: 'DRAFT',
+        outline: JSON.stringify(outline),
+        meta: JSON.stringify(meta),
         projectId,
       },
     })

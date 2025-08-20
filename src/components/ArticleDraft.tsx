@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Article, Summary } from '@/types'
+import { Article, Summary, ArticleType } from '@/types'
 
 interface ArticleDraftProps {
   projectId: string
   summary: Summary
+  articleType?: ArticleType
   onArticleGenerated: (article: Article) => void
 }
 
-export default function ArticleDraft({ projectId, summary, onArticleGenerated }: ArticleDraftProps) {
+export default function ArticleDraft({ projectId, summary, articleType, onArticleGenerated }: ArticleDraftProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
   const [article, setArticle] = useState<Article | null>(null)
@@ -24,7 +25,11 @@ export default function ArticleDraft({ projectId, summary, onArticleGenerated }:
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ 
+          projectId,
+          articleType: articleType || 'BLOG_POST',
+          language: 'ja'
+        }),
       })
 
       if (!response.ok) {

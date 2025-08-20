@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Article, Transcription, Question } from '@/types'
+import { Article, Transcription, Question, ArticleType } from '@/types'
 
 interface SummarizerProps {
   projectId: string
   transcription: Transcription
+  articleType?: ArticleType
   onArticleComplete: (article: Article) => void
 }
 
-export default function Summarizer({ projectId, transcription, onArticleComplete }: SummarizerProps) {
+export default function Summarizer({ projectId, transcription, articleType, onArticleComplete }: SummarizerProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
   const [article, setArticle] = useState<Article | null>(null)
@@ -62,7 +63,11 @@ export default function Summarizer({ projectId, transcription, onArticleComplete
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ 
+          projectId,
+          articleType: articleType || 'BLOG_POST',
+          language: 'ja'
+        }),
       })
 
       if (!articleResponse.ok) {

@@ -63,13 +63,20 @@ model Summary {
 }
 
 model Article {
-  id        String   @id @default(cuid())
-  title     String
-  content   String
-  format    String   @default("markdown")
-  projectId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  format      String   @default("markdown")
+  articleType String   @default("BLOG_POST")
+  language    String   @default("ja")
+  slug        String?
+  tone        String?
+  status      String   @default("DRAFT")
+  outline     String?  // JSON string for OutlineSection[]
+  meta        String?  // JSON string for BlogMeta | HowToMeta
+  projectId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

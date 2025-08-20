@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Project, Question, Transcription, Summary, Article } from '@/types'
+import { Project, Question, Transcription, Summary, Article, ArticleType } from '@/types'
 import InterviewSetup from './InterviewSetup'
 import InteractiveInterview from './InteractiveInterview'
 import Summarizer from './Summarizer'
@@ -17,6 +17,7 @@ export default function InterviewWorkflow() {
   const [combinedTranscription, setCombinedTranscription] = useState<Transcription | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [article, setArticle] = useState<Article | null>(null)
+  const [selectedArticleType, setSelectedArticleType] = useState<ArticleType>('BLOG_POST')
 
   const handleProjectCreated = (newProject: Project) => {
     setProject(newProject)
@@ -25,6 +26,10 @@ export default function InterviewWorkflow() {
   const handleQuestionsGenerated = (newQuestions: Question[]) => {
     setQuestions(newQuestions)
     setCurrentStep('record')
+  }
+
+  const handleArticleTypeSelected = (articleType: ArticleType) => {
+    setSelectedArticleType(articleType)
   }
 
   const handleInterviewComplete = async (newTranscriptions: Transcription[]) => {
@@ -182,6 +187,7 @@ export default function InterviewWorkflow() {
           <InterviewSetup
             onProjectCreated={handleProjectCreated}
             onQuestionsGenerated={handleQuestionsGenerated}
+            onArticleTypeSelected={handleArticleTypeSelected}
           />
         )
       
@@ -201,6 +207,7 @@ export default function InterviewWorkflow() {
           <Summarizer
             projectId={project.id}
             transcription={combinedTranscription}
+            articleType={selectedArticleType}
             onArticleComplete={handleArticleGenerated}
           />
         )

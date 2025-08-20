@@ -1,20 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { CreateProjectData, Project, Question } from '@/types'
+import { CreateProjectData, Project, Question, ArticleType } from '@/types'
 
 interface InterviewSetupProps {
   onProjectCreated: (project: Project) => void
   onQuestionsGenerated: (questions: Question[]) => void
+  onArticleTypeSelected?: (articleType: ArticleType) => void
 }
 
-export default function InterviewSetup({ onProjectCreated, onQuestionsGenerated }: InterviewSetupProps) {
+export default function InterviewSetup({ onProjectCreated, onQuestionsGenerated, onArticleTypeSelected }: InterviewSetupProps) {
   const [formData, setFormData] = useState<CreateProjectData>({
     title: '',
     description: '',
     theme: '',
     interviewee: '',
   })
+  const [articleType, setArticleType] = useState<ArticleType>('BLOG_POST')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -101,6 +103,11 @@ export default function InterviewSetup({ onProjectCreated, onQuestionsGenerated 
       const questions: Question[] = await questionsResponse.json()
       console.log('Questions generated successfully:', questions.length)
       onQuestionsGenerated(questions)
+      
+      // Notify parent component about selected article type
+      if (onArticleTypeSelected) {
+        onArticleTypeSelected(articleType)
+      }
 
     } catch (err) {
       console.error('Form submission error:', err)
@@ -176,6 +183,69 @@ export default function InterviewSetup({ onProjectCreated, onQuestionsGenerated 
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Brief description of the interview purpose..."
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Article Type
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  className={`relative cursor-pointer rounded-lg border p-4 transition-all ${
+                    articleType === 'BLOG_POST'
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  onClick={() => setArticleType('BLOG_POST')}
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="articleType"
+                      value="BLOG_POST"
+                      checked={articleType === 'BLOG_POST'}
+                      onChange={(e) => setArticleType(e.target.value as ArticleType)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label className="ml-3 block text-sm font-medium text-gray-900">
+                      Blog Post
+                    </label>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    • 導入・背景・主要トピック・まとめ
+                    • 主張と根拠を明確に
+                    • FAQ・CTA付き
+                  </div>
+                </div>
+
+                <div
+                  className={`relative cursor-pointer rounded-lg border p-4 transition-all ${
+                    articleType === 'HOW_TO_GUIDE'
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  onClick={() => setArticleType('HOW_TO_GUIDE')}
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="articleType"
+                      value="HOW_TO_GUIDE"
+                      checked={articleType === 'HOW_TO_GUIDE'}
+                      onChange={(e) => setArticleType(e.target.value as ArticleType)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <label className="ml-3 block text-sm font-medium text-gray-900">
+                      How-To Guide
+                    </label>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600">
+                    • 前提条件・材料・所要時間
+                    • 番号付き手順・難易度
+                    • トラブルシューティング付き
+                  </div>
+                </div>
+              </div>
             </div>
 
             {error && (
