@@ -1,0 +1,122 @@
+
+> interview-note-gen@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.4.3
+   - Local:        http://localhost:3000
+   - Network:      http://192.0.0.2:3000
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 1503ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.9s (553 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 3110ms
+ ✓ Compiled in 335ms (530 modules)
+ HEAD / 200 in 56ms
+ ✓ Compiled /api/projects in 214ms (547 modules)
+ GET /api/projects 200 in 327ms
+POST /api/projects called
+Received data: {
+  title: '証券会社からIFAに移る際の注意点',
+  description: '',
+  theme: '証券会社からIFAに移る際の注意点',
+  interviewee: '浅井　宥樹'
+}
+Project created successfully: cmdl9ozdb0000cqfjntb5onta
+ POST /api/projects 200 in 8ms
+ ✓ Compiled /api/questions in 305ms (686 modules)
+POST /api/questions called
+Received data: {
+  projectId: 'cmdl9ozdb0000cqfjntb5onta',
+  theme: '証券会社からIFAに移る際の注意点',
+  interviewee: '浅井　宥樹'
+}
+Generating questions with OpenAI...
+Calling OpenAI API for question generation...
+Theme: 証券会社からIFAに移る際の注意点 Interviewee: 浅井　宥樹
+(node:94072) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+OpenAI response received
+Raw content: IFAへの転職にあたって、証券会社での経験はどのように役立つと考えていますか？  
+証券会社とIFAの違いで、最も大きなカルチャーショックを受けた点は何ですか？  
+IFAに移る際に、具体的にどのような準備をしましたか？  
+お客様との関係構築において、証券会社とIFAで異なるアプローチはありますか？  
+法的または倫理的な観点から、IFAとして働く上で注意すべきポイントは何ですか？  
+収入モデルが異なる中で、IFAとしての収入の安定性をどのように確保していますか？  
+将来的にIFAとしてどのようなキャリアを築いていきたいと考えていますか？  
+Parsed questions: [
+  'IFAへの転職にあたって、証券会社での経験はどのように役立つと考えていますか？  ',
+  '証券会社とIFAの違いで、最も大きなカルチャーショックを受けた点は何ですか？  ',
+  'IFAに移る際に、具体的にどのような準備をしましたか？  ',
+  'お客様との関係構築において、証券会社とIFAで異なるアプローチはありますか？  ',
+  '法的または倫理的な観点から、IFAとして働く上で注意すべきポイントは何ですか？  ',
+  '収入モデルが異なる中で、IFAとしての収入の安定性をどのように確保していますか？  ',
+  '将来的にIFAとしてどのようなキャリアを築いていきたいと考えていますか？  '
+]
+Generated questions: [
+  'IFAへの転職にあたって、証券会社での経験はどのように役立つと考えていますか？  ',
+  '証券会社とIFAの違いで、最も大きなカルチャーショックを受けた点は何ですか？  ',
+  'IFAに移る際に、具体的にどのような準備をしましたか？  ',
+  'お客様との関係構築において、証券会社とIFAで異なるアプローチはありますか？  ',
+  '法的または倫理的な観点から、IFAとして働く上で注意すべきポイントは何ですか？  ',
+  '収入モデルが異なる中で、IFAとしての収入の安定性をどのように確保していますか？  ',
+  '将来的にIFAとしてどのようなキャリアを築いていきたいと考えていますか？  '
+]
+Saving questions to database...
+Questions created successfully: 7
+ POST /api/questions 200 in 3926ms
+ ✓ Compiled /api/transcribe in 133ms (688 modules)
+Starting transcription for file: question_1.webm Size: 74930 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 1858ms
+Starting transcription for file: question_1.webm Size: 67206 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 1729ms
+ ✓ Compiled /api/generate-followup in 130ms (690 modules)
+ POST /api/generate-followup 200 in 1438ms
+Starting transcription for file: recording.wav Size: 112877 Type: audio/wav
+Transcription completed successfully
+ POST /api/transcribe 200 in 4002ms
+Starting transcription for file: question_2.webm Size: 134421 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 3607ms
+ POST /api/generate-followup 200 in 1072ms
+Starting transcription for file: recording.wav Size: 141057 Type: audio/wav
+Transcription completed successfully
+ POST /api/transcribe 200 in 2058ms
+ POST /api/generate-followup 200 in 1251ms
+Starting transcription for file: recording.wav Size: 149835 Type: audio/wav
+Transcription completed successfully
+ POST /api/transcribe 200 in 2228ms
+Starting transcription for file: question_3.webm Size: 58497 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 1116ms
+Starting transcription for file: question_4.webm Size: 60464 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 2589ms
+Starting transcription for file: question_5.webm Size: 183866 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 1805ms
+Starting transcription for file: question_6.webm Size: 134203 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 2504ms
+ POST /api/generate-followup 200 in 2853ms
+ POST /api/generate-followup 200 in 1352ms
+Starting transcription for file: question_7.webm Size: 120641 Type: audio/webm
+Transcription completed successfully
+ POST /api/transcribe 200 in 1891ms
+ ✓ Compiled /api/transcribe-combined in 248ms (688 modules)
+ POST /api/transcribe-combined 200 in 308ms
+ ✓ Compiled /api/projects in 113ms (471 modules)
+ GET /api/projects 200 in 144ms
+ GET /api/projects 200 in 8ms
+ ✓ Compiled /api/summarize in 122ms (692 modules)
+ POST /api/summarize 200 in 5560ms
+ ✓ Compiled /api/draft in 145ms (694 modules)
+Generating article for project: cmdl9ozdb0000cqfjntb5onta
+Theme: 証券会社からIFAに移る際の注意点
+Interviewee: 浅井　宥樹
+Article created successfully: cmdl9ui4g0010cqfjg2rsfnrp
+ POST /api/draft 200 in 12331ms
