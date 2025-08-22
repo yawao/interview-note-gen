@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateArticleDraft, generateOutlineAndMeta, generateArticleContent } from '@/lib/openai'
+import { enforcePhase0, extractTitleFromMarkdown, buildTitleFallback, buildMetaDescription } from '@/lib/phase0'
 import { ArticleType } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -76,11 +77,31 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
+
+    // Apply Phase 0 enforcement to ensure content quality
+    console.log('Applying Phase 0 enforcement...')
+    const enforcedContent = await enforcePhase0({
+      md: articleContent.trim(),
+      articleType: selectedArticleType,
+      theme: project.theme
+    })
+
+    // Extract title from markdown or use fallback
+    const extractedTitle = extractTitleFromMarkdown(enforcedContent)
+    const finalTitle = extractedTitle || buildTitleFallback(project.theme, project.interviewee)
+
+    // Generate meta description
+    const metaDescription = buildMetaDescription({
+      primaryKeyword: project.theme,
+      theme: project.theme,
+      benefit: `${project.interviewee}氏の実体験から学ぶ`,
+      action: '読む'
+    })
     
     const savedArticle = await prisma.article.create({
       data: {
-        title: `${project.interviewee}氏インタビュー：${project.theme}について`,
-        content: articleContent.trim(),
+        title: finalTitle,
+        content: enforcedContent,
         format: 'markdown',
         articleType: selectedArticleType,
         language: selectedLanguage,

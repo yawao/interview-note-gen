@@ -1,0 +1,10 @@
+{
+  "questionGeneration": {
+    "success": false,
+    "error": "API Error 400: {\"error\":\"プロジェクトID、テーマ、インタビュイー情報が必要です\"}"
+  },
+  "completeWorkflow": {
+    "success": false,
+    "error": "API Error 400: {\"error\":\"プロジェクトID、テーマ、インタビュイー情報が必要です\"}"
+  }
+}

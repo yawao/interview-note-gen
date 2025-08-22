@@ -35,6 +35,27 @@ export interface Summary {
   createdAt: Date
 }
 
+// 新しい構造化インタビュー項目の型定義
+export type InterviewItemStatus = 'answered' | 'unanswered'
+
+export interface InterviewItem {
+  question: string
+  answer: string | null
+  status: InterviewItemStatus
+  evidence: string[]
+}
+
+export interface StructuredInterviewSummary {
+  items: InterviewItem[]
+}
+
+// 設定オプション
+export interface InterviewExtractionOptions {
+  strict_no_autofill: boolean
+  exact_length_output: boolean
+  unanswered_token: string
+}
+
 export type ArticleType = 'BLOG_POST' | 'HOW_TO_GUIDE';
 
 export interface ArticleCommon {

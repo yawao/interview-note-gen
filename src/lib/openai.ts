@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
-import { ArticleType, BlogMeta, HowToMeta, OutlineSection, BLOG_OUTLINE_SKELETON, HOWTO_OUTLINE_SKELETON } from '@/types'
+import { ArticleType, BlogMeta, HowToMeta, OutlineSection, BLOG_OUTLINE_SKELETON, HOWTO_OUTLINE_SKELETON, StructuredInterviewSummary, InterviewExtractionOptions } from '@/types'
+import { validateInterviewSummary, normalizeInterviewSummary, generateRepairPrompt, generateDebugInfo } from '@/lib/interview-validation'
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error('Missing OPENAI_API_KEY environment variable')
@@ -117,24 +118,273 @@ export const transcribeAudio = async (audioFile: File) => {
 }
 
 export const summarizeInterview = async (transcription: string, questions: string[]) => {
-  const questionsText = questions.map((q, i) => `Q${i + 1}: ${q}`).join('\n')
+  const questionsText = questions.map((q, i) => `${i + 1}. ${q}`).join('\n')
+  const questionCount = questions.length
   
-  const completion = await openai.responses.create({
-    model: "gpt-5-mini",
-    input: [
-      {
-        role: "system",
-        content: "あなたは専門的なコンテンツアナリストです。インタビューの内容を分析し、重要な洞察や質問への回答をハイライトした構造化された要約を日本語で作成してください。Q&A形式で主要なポイントを整理してください。"
-      },
-      {
-        role: "user",
-        content: `質問:\n${questionsText}\n\nインタビュー文字起こし:\n${transcription}\n\n上記の内容を日本語で要約してください。`
-      }
-    ],
-    max_output_tokens: 4096,
-  })
+  const systemPrompt = `あなたはインタビューQA抽出器です。以下の制約を厳守してください：
+- 回答はトランスクリプトの根拠に基づく場合のみ作成すること
+- 根拠が見つからない場合、answer は null、status は "unanswered"
+- answered の場合は、トランスクリプトからの連続した引用を evidence に最低1件含めること
+- 質問の順序を保持し、出力件数は質問数 ${questionCount} と完全一致させること
+- 出力は JSON のみ。余計な文章やマークダウンは禁止
+- 推測・常識・一般論による補完は禁止。根拠の引用は原文からの連続した一節に限る`
 
-  return completion.output_text || ''
+  const userPrompt = `N = ${questionCount}
+質問リスト：
+${questionsText}
+
+トランスクリプト（原文）：
+${transcription}
+
+出力JSONスキーマ（厳守）：
+{
+  "items": [
+    {
+      "question": "string",
+      "answer": "string or null", 
+      "status": "answered" | "unanswered",
+      "evidence": ["string"]
+    }
+  ]
+}
+
+厳守事項：
+- itemsはちょうど${questionCount}件、質問と同じ順番
+- 根拠がなければ answer は null, status は "unanswered"
+- 推測・一般論の補完は禁止
+- JSON以外の出力（前置き/後置き文章）は禁止`
+
+  try {
+    const completion = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      max_output_tokens: 12000,
+    })
+
+    const rawOutput = completion.output_text || ''
+    
+    if (!rawOutput) {
+      throw new Error('OpenAIから応答がありませんでした')
+    }
+
+    // JSONパース試行
+    let parsedData
+    try {
+      // JSON部分のみを抽出（前後の余計な文字を除去）
+      const jsonMatch = rawOutput.match(/\{[\s\S]*\}/)
+      const jsonString = jsonMatch ? jsonMatch[0] : rawOutput
+      parsedData = JSON.parse(jsonString)
+    } catch (parseError) {
+      console.error('JSON パースエラー:', parseError)
+      console.error('Raw output:', rawOutput)
+      
+      // パースエラーの場合はフォールバック（全て未回答）
+      parsedData = {
+        items: questions.map(q => ({
+          question: q,
+          answer: null,
+          status: 'unanswered',
+          evidence: []
+        }))
+      }
+    }
+
+    return { 
+      structuredSummary: parsedData,
+      rawOutput,
+      success: true 
+    }
+
+  } catch (error) {
+    console.error('OpenAI API error in summarizeInterview:', error)
+    
+    // エラー時のフォールバック
+    const fallbackData = {
+      items: questions.map(q => ({
+        question: q,
+        answer: null,
+        status: 'unanswered' as const,
+        evidence: []
+      }))
+    }
+    
+    return {
+      structuredSummary: fallbackData,
+      rawOutput: '',
+      success: false,
+      error: error instanceof Error ? error.message : '不明なエラー'
+    }
+  }
+}
+
+/**
+ * 厳密なバリデーション機能付きインタビュー抽出
+ */
+export const extractStructuredInterview = async (
+  transcription: string, 
+  questions: string[],
+  options: InterviewExtractionOptions = {
+    strict_no_autofill: true,
+    exact_length_output: true,
+    unanswered_token: '未回答'
+  }
+): Promise<{
+  summary: StructuredInterviewSummary
+  metadata: {
+    success: boolean
+    rawOutput: string
+    repairAttempted: boolean
+    validationPassed: boolean
+    debugInfo?: string
+    error?: string
+  }
+}> => {
+  try {
+    console.log(`開始: 構造化インタビュー抽出 (質問数: ${questions.length})`)
+
+    // 第1回目の抽出試行
+    const firstAttempt = await summarizeInterview(transcription, questions)
+    
+    if (!firstAttempt.success) {
+      console.error('初回抽出に失敗:', firstAttempt.error)
+      const normalizedSummary = normalizeInterviewSummary(null, questions, transcription, options)
+      return {
+        summary: normalizedSummary,
+        metadata: {
+          success: false,
+          rawOutput: firstAttempt.rawOutput,
+          repairAttempted: false,
+          validationPassed: false,
+          error: firstAttempt.error
+        }
+      }
+    }
+
+    // スキーマ検証
+    const validation = validateInterviewSummary(firstAttempt.structuredSummary, questions.length)
+    
+    if (validation.isValid) {
+      console.log('✅ 初回抽出成功、バリデーション合格')
+      const normalizedSummary = normalizeInterviewSummary(
+        firstAttempt.structuredSummary, 
+        questions, 
+        transcription, 
+        options
+      )
+      
+      return {
+        summary: normalizedSummary,
+        metadata: {
+          success: true,
+          rawOutput: firstAttempt.rawOutput,
+          repairAttempted: false,
+          validationPassed: true
+        }
+      }
+    }
+
+    // バリデーション失敗 → 修復試行
+    console.log('⚠️ 初回バリデーション失敗、修復を試行:', validation.violations)
+    
+    const repairPrompt = generateRepairPrompt(
+      firstAttempt.structuredSummary,
+      validation.violations,
+      questions.length
+    )
+
+    const repairAttempt = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: [
+        {
+          role: "system",
+          content: "あなたはインタビューQA抽出器です。スキーマ違反を修正して正しいJSONを出力してください。"
+        },
+        {
+          role: "user", 
+          content: repairPrompt
+        }
+      ],
+      max_output_tokens: 12000,
+    })
+
+    const repairRawOutput = repairAttempt.output_text || ''
+    let repairedData
+    
+    try {
+      const jsonMatch = repairRawOutput.match(/\{[\s\S]*\}/)
+      const jsonString = jsonMatch ? jsonMatch[0] : repairRawOutput
+      repairedData = JSON.parse(jsonString)
+    } catch (repairParseError) {
+      console.error('修復後もJSON パースエラー:', repairParseError)
+      repairedData = null
+    }
+
+    // 修復後の再検証
+    const repairValidation = repairedData ? 
+      validateInterviewSummary(repairedData, questions.length) : 
+      { isValid: false, violations: ['JSON パース失敗'] }
+
+    if (repairValidation.isValid) {
+      console.log('✅ 修復成功、バリデーション合格')
+      const normalizedSummary = normalizeInterviewSummary(repairedData, questions, transcription, options)
+      
+      return {
+        summary: normalizedSummary,
+        metadata: {
+          success: true,
+          rawOutput: `初回: ${firstAttempt.rawOutput}\n修復後: ${repairRawOutput}`,
+          repairAttempted: true,
+          validationPassed: true
+        }
+      }
+    }
+
+    // 修復も失敗 → 防御的正規化
+    console.log('❌ 修復失敗、防御的正規化を実行')
+    const normalizedSummary = normalizeInterviewSummary(
+      repairedData || firstAttempt.structuredSummary, 
+      questions, 
+      transcription, 
+      options
+    )
+
+    const debugInfo = generateDebugInfo(
+      repairedData || firstAttempt.structuredSummary,
+      questions,
+      transcription
+    )
+
+    return {
+      summary: normalizedSummary,
+      metadata: {
+        success: false,
+        rawOutput: `初回: ${firstAttempt.rawOutput}\n修復後: ${repairRawOutput}`,
+        repairAttempted: true,
+        validationPassed: false,
+        debugInfo,
+        error: `修復後も検証失敗: ${repairValidation.violations.join(', ')}`
+      }
+    }
+
+  } catch (error) {
+    console.error('構造化インタビュー抽出で予期しないエラー:', error)
+    
+    const fallbackSummary = normalizeInterviewSummary(null, questions, transcription, options)
+    
+    return {
+      summary: fallbackSummary,
+      metadata: {
+        success: false,
+        rawOutput: '',
+        repairAttempted: false,
+        validationPassed: false,
+        error: error instanceof Error ? error.message : '不明なエラー'
+      }
+    }
+  }
 }
 
 export const generateFollowUpQuestion = async (originalQuestion: string, answer: string) => {

@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       const savedTranscription = await prisma.transcription.create({
         data: {
           audioUrl: `temp/${audioFile.name}`, // Temporary URL, would use real storage in production
-          text: transcription,
+          text: String(transcription),
           projectId,
         },
       })
