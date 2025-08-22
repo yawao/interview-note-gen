@@ -122,12 +122,17 @@ export const summarizeInterview = async (transcription: string, questions: strin
   const questionCount = questions.length
   
   const systemPrompt = `あなたはインタビューQA抽出器です。以下の制約を厳守してください：
+
+CRITICAL: 出力項目数は質問数 ${questionCount} と完全一致させること（これより多くても少なくてもいけません）
+
 - 回答はトランスクリプトの根拠に基づく場合のみ作成すること
 - 根拠が見つからない場合、answer は null、status は "unanswered"
 - answered の場合は、トランスクリプトからの連続した引用を evidence に最低1件含めること
 - 質問の順序を保持し、出力件数は質問数 ${questionCount} と完全一致させること
 - 出力は JSON のみ。余計な文章やマークダウンは禁止
-- 推測・常識・一般論による補完は禁止。根拠の引用は原文からの連続した一節に限る`
+- 推測・常識・一般論による補完は禁止。根拠の引用は原文からの連続した一節に限る
+
+IMPORTANT: itemsの配列は必ず ${questionCount} 個でなければなりません。`
 
   const userPrompt = `N = ${questionCount}
 質問リスト：
@@ -149,12 +154,15 @@ ${transcription}
 }
 
 厳守事項：
-- itemsはちょうど${questionCount}件、質問と同じ順番
+- itemsはちょうど${questionCount}件、質問と同じ順番（これより多いまたは少ない場合は指示違反）
 - 根拠がなければ answer は null, status は "unanswered"
 - 推測・一般論の補完は禁止
-- JSON以外の出力（前置き/後置き文章）は禁止`
+- JSON以外の出力（前置き/後置き文章）は禁止
+
+VERIFICATION: 出力前に項目数が ${questionCount} であることを確認してください。`
 
   try {
+    console.log('🤖 LLM呼び出し開始: gpt-5-mini')
     const completion = await openai.responses.create({
       model: "gpt-5-mini",
       input: [
@@ -170,6 +178,12 @@ ${transcription}
       throw new Error('OpenAIから応答がありませんでした')
     }
 
+    // デバッグ用ログ追加
+    console.log('===== LLM生出力デバッグ =====')
+    console.log('期待質問数:', questionCount)
+    console.log('生出力長:', rawOutput.length, '文字')
+    console.log('生出力内容:', rawOutput.substring(0, 500) + (rawOutput.length > 500 ? '...' : ''))
+    
     // JSONパース試行
     let parsedData
     try {
@@ -177,6 +191,36 @@ ${transcription}
       const jsonMatch = rawOutput.match(/\{[\s\S]*\}/)
       const jsonString = jsonMatch ? jsonMatch[0] : rawOutput
       parsedData = JSON.parse(jsonString)
+      
+      // パース後のデータ構造をログ
+      console.log('パース済みデータ:')
+      console.log('- items配列長:', parsedData?.items?.length || 0)
+      console.log('- 期待値:', questionCount)
+      if (parsedData?.items?.length !== questionCount) {
+        console.warn('⚠️ 項目数不一致が検出されました!')
+        console.log('実際の項目:', parsedData.items?.map(item => item.question) || [])
+        
+        // 強制的に質問数に合わせる
+        if (parsedData?.items && Array.isArray(parsedData.items)) {
+          if (parsedData.items.length > questionCount) {
+            console.log('🔧 余分な項目を削除中...')
+            parsedData.items = parsedData.items.slice(0, questionCount)
+          } else if (parsedData.items.length < questionCount) {
+            console.log('🔧 不足項目を補完中...')
+            const missingCount = questionCount - parsedData.items.length
+            for (let i = 0; i < missingCount; i++) {
+              const missingIndex = parsedData.items.length
+              parsedData.items.push({
+                question: questions[missingIndex] || `質問${missingIndex + 1}`,
+                answer: null,
+                status: 'unanswered',
+                evidence: []
+              })
+            }
+          }
+          console.log('✅ 修正後の項目数:', parsedData.items.length)
+        }
+      }
     } catch (parseError) {
       console.error('JSON パースエラー:', parseError)
       console.error('Raw output:', rawOutput)
@@ -540,11 +584,11 @@ ${transcript}
       console.log('=== OpenAI Responses API Error ===')
       console.log('Error type:', typeof apiError)
       console.log('Error constructor:', apiError?.constructor?.name)
-      console.log('Error message:', apiError?.message)
-      console.log('Error status:', apiError?.status)
-      console.log('Error code:', apiError?.code)
-      console.log('Error type field:', apiError?.type)
-      console.log('Error response headers:', apiError?.headers)
+      console.log('Error message:', (apiError as any)?.message)
+      console.log('Error status:', (apiError as any)?.status)
+      console.log('Error code:', (apiError as any)?.code)
+      console.log('Error type field:', (apiError as any)?.type)
+      console.log('Error response headers:', (apiError as any)?.headers)
       console.log('Full error object:', JSON.stringify(apiError, Object.getOwnPropertyNames(apiError), 2))
       throw apiError
     }

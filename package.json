@@ -8,8 +8,22 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest",
-    "test:ui": "vitest --ui"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:unit": "vitest run tests/interviewNoteGen.spec.ts",
+    "test:integration": "vitest run tests/integration/",
+    "test:property": "vitest run tests/property.spec.ts",
+    "test:snapshots": "vitest run tests/snapshots.spec.ts",
+    "test:regression": "vitest run tests/interviewNoteGen.spec.ts tests/snapshots.spec.ts tests/property.spec.ts",
+    "test:performance": "vitest run tests/interviewNoteGen.spec.ts --grep=\"パフォーマンス\"",
+    "test:security": "vitest run tests/interviewNoteGen.spec.ts --grep=\"注入攻撃|injection\"",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:check": "vitest run --coverage --coverage.thresholds.statements=90 --coverage.thresholds.branches=85 --coverage.thresholds.functions=90 --coverage.thresholds.lines=90",
+    "coverage": "vitest run --coverage",
+    "kill-port": "bash scripts/kill-port-3000.sh",
+    "dev:clean": "bash scripts/kill-port-3000.sh && npm run dev"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
@@ -25,13 +39,16 @@
     "@types/node": "^22.8.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-next": "15.4.3",
+    "fast-check": "^4.2.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "zod": "^3.25.76"
   }
 }

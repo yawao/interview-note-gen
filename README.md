@@ -30,41 +30,47 @@ A minimal SaaS application that transforms interview audio into structured artic
 - **AI**: OpenAI GPT-4o & Whisper APIs
 - **Deployment**: Vercel
 
-## Setup Instructions
+## 🚀 ローカル起動方法
 
-### 1. Environment Variables
+### クイックスタート
 
-Copy the environment template:
 ```bash
+# 1️⃣ 自動セットアップスクリプトを実行
+./start-local.sh
+
+# または
+bash start-local.sh
+```
+
+このスクリプトが以下を自動で行います：
+- 環境チェック (Node.js, npm)
+- .env.local ファイルの作成 
+- 依存関係のインストール
+- データベースセットアップ
+- 開発サーバーの起動
+
+### 手動セットアップ
+
+```bash
+# 1. 環境変数の設定
 cp .env.local.example .env.local
-```
+# .env.local でOpenAI API キーを設定
 
-Add your OpenAI API key:
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-```
+# 2. 依存関係のインストール
+npm install
 
-### 2. Database Setup
-
-Generate Prisma client and run migrations:
-```bash
+# 3. データベースセットアップ
 npx prisma generate
 npx prisma migrate dev --name init
-```
 
-### 3. Install Dependencies
-
-```bash
-npm install
-```
-
-### 4. Run Development Server
-
-```bash
+# 4. 開発サーバー起動
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+### アクセス
+📍 **http://localhost:3000** でアプリケーションが起動します
+
+**詳細なセットアップ手順は [QUICKSTART.md](./QUICKSTART.md) を参照してください**
 
 ### 5. Run Tests
 

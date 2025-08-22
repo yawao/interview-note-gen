@@ -1,0 +1,239 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Snapshot Tests - Regression Detection > Core Scenarios > Evidence-downshiftシナリオ - 根拠なし項目の適切な処理 > evidence-downshift-scenario 1`] = `
+{
+  "items": [
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "創業の背景について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "unanswered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Core Scenarios > Overflowシナリオ - 超過出力の正規化 > overflow-scenario-normalized 1`] = `
+{
+  "items": [
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "創業について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "事業について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "今後について教えてください",
+      "status": "unanswered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Core Scenarios > 基本シナリオ - 正常な根拠付き回答 > basic-scenario-normal 1`] = `
+{
+  "items": [
+    {
+      "answer": "回答1: 根拠に基づく内容",
+      "evidence": [
+        "前職でエンジニアとして働いていた時に課題を感じた",
+        "2019年に会社を設立",
+      ],
+      "question": "創業の背景について教えてください",
+      "status": "answered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": "回答3: 根拠に基づく内容",
+      "evidence": [
+        "会社のビジョンに共感してくれる人材を重視",
+        "実務テストを導入",
+      ],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "answered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Data Structure Snapshots > 項目構造の一貫性 > item-structure 1`] = `
+{
+  "answer": "回答1: 根拠に基づく内容",
+  "evidence": [
+    "前職でエンジニアとして働いていた時に課題を感じた",
+    "2019年に会社を設立",
+  ],
+  "question": "創業の背景について教えてください",
+  "status": "answered",
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Data Structure Snapshots > 項目構造の一貫性 > summary-structure 1`] = `
+{
+  "answeredCount": 2,
+  "itemCount": 3,
+  "itemKeys": [
+    "question",
+    "answer",
+    "status",
+    "evidence",
+  ],
+  "unansweredCount": 1,
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Deterministic Behavior > 同一入力での同一出力（決定性） > deterministic-output 1`] = `
+{
+  "items": [
+    {
+      "answer": "回答1: 根拠に基づく内容",
+      "evidence": [
+        "前職でエンジニアとして働いていた時に課題を感じた",
+        "2019年に会社を設立",
+      ],
+      "question": "創業の背景について教えてください",
+      "status": "answered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": "回答3: 根拠に基づく内容",
+      "evidence": [
+        "会社のビジョンに共感してくれる人材を重視",
+        "実務テストを導入",
+      ],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "answered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Edge Cases Snapshots > Underflow補完 > underflow-completed 1`] = `
+{
+  "items": [
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "創業の背景について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "unanswered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Edge Cases Snapshots > 偽の根拠検出・除外 > fake-evidence-filtered 1`] = `
+{
+  "items": [
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "創業の背景について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "unanswered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Edge Cases Snapshots > 注入攻撃耐性 > injection-resistant 1`] = `
+{
+  "items": [
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "創業の背景について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "unanswered",
+    },
+  ],
+}
+`;
+
+exports[`Snapshot Tests - Regression Detection > Edge Cases Snapshots > 非JSON出力の正規化 > non-json-normalized 1`] = `
+{
+  "items": [
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "創業の背景について教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "プロダクトマーケットフィットの過程を教えてください",
+      "status": "unanswered",
+    },
+    {
+      "answer": null,
+      "evidence": [],
+      "question": "チーム作りで重視したことは何ですか",
+      "status": "unanswered",
+    },
+  ],
+}
+`;
