@@ -606,15 +606,16 @@ export default function InteractiveInterview({ questions, projectId, onInterview
   }
 
   const finishInterview = () => {
+    // スキップした質問（transcriptionがない）は除外し、回答した質問のみを処理
     const completedTranscriptions = questionAnswers
-      .filter(qa => qa.transcription)
+      .filter(qa => qa.transcription && qa.transcription.text.trim()) // 空のtextも除外
       .map(qa => {
         let combinedText = qa.transcription!.text
         
         // Add follow-up Q&As to the transcription
         if (qa.followUpItems && qa.followUpItems.length > 0) {
           const followUpContent = qa.followUpItems
-            .filter(item => item.transcription?.text)
+            .filter(item => item.transcription?.text && item.transcription.text.trim()) // 空のfollow-upも除外
             .map((item, index) => {
               return `\n\n【深掘り質問${index + 1}】${item.question}\n【深掘り回答${index + 1}】${item.transcription!.text}`
             })
