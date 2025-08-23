@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { ArticleType, BlogMeta, HowToMeta, OutlineSection, BLOG_OUTLINE_SKELETON, HOWTO_OUTLINE_SKELETON, StructuredInterviewSummary, InterviewExtractionOptions } from '@/types'
-import { validateInterviewSummary, normalizeInterviewSummary, generateRepairPrompt, generateDebugInfo } from '@/lib/interview-validation'
+import { normalizeInterviewSummary } from './interview-normalization'
+import { validateInterviewSchema, generateRepairPrompt, extractJsonFromOutput, logValidationResult } from './interview-schema'
+import { validateInterviewSummary, generateDebugInfo } from '@/lib/interview-validation'
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error('Missing OPENAI_API_KEY environment variable')
@@ -117,22 +119,83 @@ export const transcribeAudio = async (audioFile: File) => {
   }
 }
 
+/**
+ * カスタムプロンプトでのインタビュー要約（リペア用）
+ */
+const summarizeInterviewWithCustomPrompt = async (customPrompt: string) => {
+  try {
+    console.log('🤖 リペアLLM呼び出し開始: gpt-5-mini')
+    const completion = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: [
+        { role: "user", content: customPrompt }
+      ],
+      max_output_tokens: 12000,
+    })
+
+    const rawOutput = completion.output_text || ''
+    
+    if (!rawOutput) {
+      throw new Error('OpenAIから応答がありませんでした')
+    }
+
+    console.log('===== リペアLLM生出力 =====')
+    console.log('生出力長:', rawOutput.length, '文字')
+    console.log('生出力内容:', rawOutput.substring(0, 300) + '...')
+    
+    // JSON抽出とパース
+    const jsonExtraction = extractJsonFromOutput(rawOutput);
+    if (!jsonExtraction.success) {
+      throw new Error(`JSON抽出失敗: ${jsonExtraction.error}`);
+    }
+
+    const parsedData = JSON.parse(jsonExtraction.json)
+    
+    return {
+      success: true,
+      structuredSummary: parsedData,
+      rawOutput,
+      error: null
+    }
+  } catch (error) {
+    console.error('リペア処理エラー:', error)
+    return {
+      success: false,
+      structuredSummary: null,
+      rawOutput: '',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
 export const summarizeInterview = async (transcription: string, questions: string[]) => {
   const questionsText = questions.map((q, i) => `${i + 1}. ${q}`).join('\n')
   const questionCount = questions.length
   
-  const systemPrompt = `あなたはインタビューQA抽出器です。以下の制約を厳守してください：
+  const systemPrompt = `あなたはインタビューQA抽出器です。「回答しているのに未回答になる」誤判定を完全に防ぐため、以下の制約を厳守してください：
 
-CRITICAL: 出力項目数は質問数 ${questionCount} と完全一致させること（これより多くても少なくてもいけません）
+CRITICAL RULES (違反は指示無視):
+- 出力項目数は質問数 ${questionCount} と完全一致させること（これより多くても少なくてもいけません）
+- answered にするなら、transcriptの連続文字列を evidence に最低1件入れること（8文字以上の連続部分）
+- evidence が取れない場合は必ず status:"unanswered", answer:null, evidence:[]
+- 推測補完を絶対禁止。transcript に存在しない内容は一切作成禁止
+- 出力は純JSONのみ。前後のテキスト・マークダウン・説明文は絶対禁止
 
-- 回答はトランスクリプトの根拠に基づく場合のみ作成すること
-- 根拠が見つからない場合、answer は null、status は "unanswered"
-- answered の場合は、トランスクリプトからの連続した引用を evidence に最低1件含めること
-- 質問の順序を保持し、出力件数は質問数 ${questionCount} と完全一致させること
-- 出力は JSON のみ。余計な文章やマークダウンは禁止
-- 推測・常識・一般論による補完は禁止。根拠の引用は原文からの連続した一節に限る
+EVIDENCE REQUIREMENTS:
+- evidence[] の各要素は transcript 内の連続文字列からの直接引用（最低8文字以上）
+- 言い回し変更・要約・解釈は禁止。原文そのままの引用のみ
+- evidence が空または無効な場合は自動的に unanswered へ
 
-IMPORTANT: itemsの配列は必ず ${questionCount} 個でなければなりません。`
+OUTPUT FORMAT:
+- 純JSON形式のみ（{で始まり}で終わる）
+- itemsは必ず質問数 ${questionCount} 個
+- 各item: {question: string, answer: string|null, status: "answered"|"unanswered", evidence: string[]}
+
+VERIFICATION CHECKLIST:
+□ 項目数 = ${questionCount} ？
+□ answered項目に有効なevidence（8文字以上の連続引用）？
+□ 推測・解釈・要約は含まない？
+□ 純JSONのみ？`
 
   const userPrompt = `N = ${questionCount}
 質問リスト：
@@ -153,13 +216,23 @@ ${transcription}
   ]
 }
 
-厳守事項：
-- itemsはちょうど${questionCount}件、質問と同じ順番（これより多いまたは少ない場合は指示違反）
-- 根拠がなければ answer は null, status は "unanswered"
-- 推測・一般論の補完は禁止
-- JSON以外の出力（前置き/後置き文章）は禁止
+MANDATORY REQUIREMENTS:
+- itemsはちょうど${questionCount}件、質問と同じ順番
+- answered項目は transcript からの直接引用（8文字以上）を evidence に必須
+- 引用が取れない場合は status:"unanswered", answer:null, evidence:[]
+- 推測・解釈・要約・一般論は絶対禁止
+- JSON以外の出力（前置き/後置き/説明文）は絶対禁止
 
-VERIFICATION: 出力前に項目数が ${questionCount} であることを確認してください。`
+EVIDENCE EXTRACTION RULES:
+1. transcript を精査し、各質問への直接的言及を探す
+2. 該当箇所があれば、その連続文字列（8文字以上）を evidence にコピー
+3. 該当箇所がなければ unanswered
+4. 言い回しを変えたり要約したりしない。原文そのまま引用
+
+FINAL CHECK: 出力前に必ず確認
+□ 項目数 = ${questionCount}
+□ answered項目にはすべて有効なevidence
+□ 純JSONのみ（説明文なし）`
 
   try {
     console.log('🤖 LLM呼び出し開始: gpt-5-mini')
@@ -184,42 +257,31 @@ VERIFICATION: 出力前に項目数が ${questionCount} であることを確認
     console.log('生出力長:', rawOutput.length, '文字')
     console.log('生出力内容:', rawOutput.substring(0, 500) + (rawOutput.length > 500 ? '...' : ''))
     
-    // JSONパース試行
+    // JSON抽出とパース
+    const jsonExtraction = extractJsonFromOutput(rawOutput);
+    if (!jsonExtraction.success) {
+      throw new Error(`JSON抽出失敗: ${jsonExtraction.error}`);
+    }
+
     let parsedData
     try {
-      // JSON部分のみを抽出（前後の余計な文字を除去）
-      const jsonMatch = rawOutput.match(/\{[\s\S]*\}/)
-      const jsonString = jsonMatch ? jsonMatch[0] : rawOutput
-      parsedData = JSON.parse(jsonString)
+      parsedData = JSON.parse(jsonExtraction.json)
       
       // パース後のデータ構造をログ
       console.log('パース済みデータ:')
       console.log('- items配列長:', parsedData?.items?.length || 0)
       console.log('- 期待値:', questionCount)
-      if (parsedData?.items?.length !== questionCount) {
-        console.warn('⚠️ 項目数不一致が検出されました!')
-        console.log('実際の項目:', parsedData.items?.map((item: any) => item.question) || [])
+      
+      // スキーマ検証
+      const schemaValidation = validateInterviewSchema(parsedData, questionCount);
+      logValidationResult(schemaValidation, 'LLM初回出力');
+      
+      if (!schemaValidation.isValid) {
+        console.warn('⚠️ スキーマ検証失敗 - リペア試行')
+        console.log('スキーマエラー:', schemaValidation.errors.slice(0, 3))
         
-        // 強制的に質問数に合わせる
-        if (parsedData?.items && Array.isArray(parsedData.items)) {
-          if (parsedData.items.length > questionCount) {
-            console.log('🔧 余分な項目を削除中...')
-            parsedData.items = parsedData.items.slice(0, questionCount)
-          } else if (parsedData.items.length < questionCount) {
-            console.log('🔧 不足項目を補完中...')
-            const missingCount = questionCount - parsedData.items.length
-            for (let i = 0; i < missingCount; i++) {
-              const missingIndex = parsedData.items.length
-              parsedData.items.push({
-                question: questions[missingIndex] || `質問${missingIndex + 1}`,
-                answer: null,
-                status: 'unanswered',
-                evidence: []
-              })
-            }
-          }
-          console.log('✅ 修正後の項目数:', parsedData.items.length)
-        }
+        // リペアプロンプトで再生成を試行
+        throw new Error(`Schema validation failed: ${schemaValidation.errors.join('; ')}`)
       }
     } catch (parseError) {
       console.error('JSON パースエラー:', parseError)
@@ -290,19 +352,64 @@ export const extractStructuredInterview = async (
     console.log(`開始: 構造化インタビュー抽出 (質問数: ${questions.length})`)
 
     // 第1回目の抽出試行
-    const firstAttempt = await summarizeInterview(transcription, questions)
+    let firstAttempt = await summarizeInterview(transcription, questions)
+    let repairAttempted = false;
     
     if (!firstAttempt.success) {
       console.error('初回抽出に失敗:', firstAttempt.error)
-      const normalizedSummary = normalizeInterviewSummary(null, questions, transcription, options)
-      return {
-        summary: normalizedSummary,
-        metadata: {
-          success: false,
-          rawOutput: firstAttempt.rawOutput,
-          repairAttempted: false,
-          validationPassed: false,
-          error: firstAttempt.error
+      
+      // リペア試行
+      if (firstAttempt.rawOutput && firstAttempt.error?.includes('Schema validation failed')) {
+        console.log('🔧 スキーマエラー検出 - リペア試行中...')
+        const repairPrompt = generateRepairPrompt(
+          null, // parsedDataがない場合
+          firstAttempt.error ? [firstAttempt.error] : ['初回抽出失敗'],
+          questions.length,
+          transcription,
+          questions
+        );
+        
+        // リペア実行（simplified version）
+        try {
+          const repairResult = await summarizeInterviewWithCustomPrompt(repairPrompt);
+          if (repairResult.success) {
+            console.log('✅ リペア成功');
+            // 型を合わせるために修正
+            firstAttempt = {
+              structuredSummary: repairResult.structuredSummary,
+              rawOutput: repairResult.rawOutput,
+              success: repairResult.success,
+              error: repairResult.error || undefined
+            };
+            repairAttempted = true;
+          }
+        } catch (repairError) {
+          console.error('❌ リペア失敗:', repairError);
+        }
+      }
+      
+      if (!firstAttempt.success) {
+        const normalizedResult = normalizeInterviewSummary({
+          items: [],
+          questions: questions.map((q, i) => ({ 
+            id: `q_${i+1}`, 
+            content: q, 
+            order: i+1,
+            projectId: 'fallback',
+            createdAt: new Date()
+          })),
+          transcript: transcription
+        });
+        
+        return {
+          summary: { items: normalizedResult.items },
+          metadata: {
+            success: false,
+            rawOutput: firstAttempt.rawOutput,
+            repairAttempted,
+            validationPassed: false,
+            error: firstAttempt.error
+          }
         }
       }
     }
@@ -312,19 +419,24 @@ export const extractStructuredInterview = async (
     
     if (validation.isValid) {
       console.log('✅ 初回抽出成功、バリデーション合格')
-      const normalizedSummary = normalizeInterviewSummary(
-        firstAttempt.structuredSummary, 
-        questions, 
-        transcription, 
-        options
-      )
+      const normalizedResult = normalizeInterviewSummary({
+        items: firstAttempt.structuredSummary.items || [],
+        questions: questions.map((q, i) => ({ 
+          id: `q_${i+1}`, 
+          content: q, 
+          order: i+1,
+          projectId: 'extract',
+          createdAt: new Date()
+        })),
+        transcript: transcription
+      })
       
       return {
-        summary: normalizedSummary,
+        summary: { items: normalizedResult.items },
         metadata: {
           success: true,
           rawOutput: firstAttempt.rawOutput,
-          repairAttempted: false,
+          repairAttempted,
           validationPassed: true
         }
       }
@@ -336,7 +448,9 @@ export const extractStructuredInterview = async (
     const repairPrompt = generateRepairPrompt(
       firstAttempt.structuredSummary,
       validation.violations,
-      questions.length
+      questions.length,
+      transcription,
+      questions
     )
 
     const repairAttempt = await openai.responses.create({
@@ -373,10 +487,20 @@ export const extractStructuredInterview = async (
 
     if (repairValidation.isValid) {
       console.log('✅ 修復成功、バリデーション合格')
-      const normalizedSummary = normalizeInterviewSummary(repairedData, questions, transcription, options)
+      const normalizedResult = normalizeInterviewSummary({
+        items: repairedData.items || [],
+        questions: questions.map((q, i) => ({ 
+          id: `q_${i+1}`, 
+          content: q, 
+          order: i+1,
+          projectId: 'repaired',
+          createdAt: new Date()
+        })),
+        transcript: transcription
+      })
       
       return {
-        summary: normalizedSummary,
+        summary: { items: normalizedResult.items },
         metadata: {
           success: true,
           rawOutput: `初回: ${firstAttempt.rawOutput}\n修復後: ${repairRawOutput}`,
@@ -388,12 +512,18 @@ export const extractStructuredInterview = async (
 
     // 修復も失敗 → 防御的正規化
     console.log('❌ 修復失敗、防御的正規化を実行')
-    const normalizedSummary = normalizeInterviewSummary(
-      repairedData || firstAttempt.structuredSummary, 
-      questions, 
-      transcription, 
-      options
-    )
+    const fallbackData = repairedData || firstAttempt.structuredSummary || { items: [] };
+    const normalizedResult = normalizeInterviewSummary({
+      items: fallbackData.items || [],
+      questions: questions.map((q, i) => ({ 
+        id: `q_${i+1}`, 
+        content: q, 
+        order: i+1,
+        projectId: 'fallback',
+        createdAt: new Date()
+      })),
+      transcript: transcription
+    })
 
     const debugInfo = generateDebugInfo(
       repairedData || firstAttempt.structuredSummary,
@@ -402,7 +532,7 @@ export const extractStructuredInterview = async (
     )
 
     return {
-      summary: normalizedSummary,
+      summary: { items: normalizedResult.items },
       metadata: {
         success: false,
         rawOutput: `初回: ${firstAttempt.rawOutput}\n修復後: ${repairRawOutput}`,
@@ -416,10 +546,20 @@ export const extractStructuredInterview = async (
   } catch (error) {
     console.error('構造化インタビュー抽出で予期しないエラー:', error)
     
-    const fallbackSummary = normalizeInterviewSummary(null, questions, transcription, options)
+    const fallbackResult = normalizeInterviewSummary({
+      items: [],
+      questions: questions.map((q, i) => ({ 
+        id: `q_${i+1}`, 
+        content: q, 
+        order: i+1,
+        projectId: 'error-fallback',
+        createdAt: new Date()
+      })),
+      transcript: transcription
+    })
     
     return {
-      summary: fallbackSummary,
+      summary: { items: fallbackResult.items },
       metadata: {
         success: false,
         rawOutput: '',
