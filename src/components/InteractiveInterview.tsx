@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Question, Transcription } from '@/types'
+import { normalizeInterview, sanitizeQAData } from '@/lib/qa-normalize'
+import type { QAInput } from '@/lib/qa-normalize'
 
 interface InteractiveInterviewProps {
   questions: Question[]
@@ -606,30 +608,73 @@ export default function InteractiveInterview({ questions, projectId, onInterview
   }
 
   const finishInterview = () => {
-    // スキップした質問（transcriptionがない）は除外し、回答した質問のみを処理
-    const completedTranscriptions = questionAnswers
-      .filter(qa => qa.transcription && qa.transcription.text.trim()) // 空のtextも除外
-      .map(qa => {
-        let combinedText = qa.transcription!.text
-        
-        // Add follow-up Q&As to the transcription
-        if (qa.followUpItems && qa.followUpItems.length > 0) {
-          const followUpContent = qa.followUpItems
-            .filter(item => item.transcription?.text && item.transcription.text.trim()) // 空のfollow-upも除外
-            .map((item, index) => {
-              return `\n\n【深掘り質問${index + 1}】${item.question}\n【深掘り回答${index + 1}】${item.transcription!.text}`
-            })
-            .join('')
-          
-          combinedText += followUpContent
-        }
-        
-        return {
-          ...qa.transcription!,
-          text: combinedText
-        }
-      })
+    console.log('🔧 インタビュー完了処理：正規化開始')
     
+    // 1) Q/A配列を組み立て
+    const rawQAInput: QAInput = {
+      questions: questionAnswers.map(qa => qa.question.content),
+      answers: questionAnswers.map(qa => qa.transcription?.text || ''), // 空回答はそのまま
+      followUps: questionAnswers.map(qa => 
+        (qa.followUpItems || []).map(item => item.question)
+      ),
+      metadata: {
+        projectId,
+        originalQuestionCount: questions.length
+      }
+    };
+    
+    // 2) サニタイズ（プロンプトインジェクション対策）
+    const sanitizedInput = sanitizeQAData(rawQAInput);
+    
+    // 3) 正規化（最大7件制限＋未回答保持）
+    const normalized = normalizeInterview(sanitizedInput, {
+      maxQuestions: 7,
+      maxFollowUpsPerQ: 2,
+      allowEmptyAnswers: true
+    });
+    
+    console.log(`✅ 正規化完了: ${normalized.questions.length}件`)
+    console.log(`- 空回答: ${normalized.answers.filter(a => !a.trim()).length}件`)
+    
+    // 4) Transcription形式に再構築（既存フォーマット互換）
+    const completedTranscriptions = normalized.questions.map((question, index) => {
+      const answer = normalized.answers[index] || '';
+      const followUps = normalized.followUps[index] || [];
+      
+      // 空回答の場合はスキップ（従来の動作維持）
+      if (!answer.trim()) {
+        return null;
+      }
+      
+      // follow-up付きの結合テキスト構築
+      let combinedText = answer;
+      
+      if (followUps.length > 0) {
+        const followUpContent = followUps.map((fuQuestion, fuIndex) => {
+          // follow-upに対応する回答を取得（元のfollowUpItemsから）
+          const originalQA = questionAnswers[index];
+          const fuAnswer = originalQA?.followUpItems?.[fuIndex]?.transcription?.text || '';
+          
+          if (fuAnswer.trim()) {
+            return `\n\n【深掘り質問${fuIndex + 1}】${fuQuestion}\n【深掘り回答${fuIndex + 1}】${fuAnswer}`;
+          }
+          return '';
+        }).join('');
+        
+        combinedText += followUpContent;
+      }
+      
+      return {
+        id: `transcript_${index}`,
+        text: combinedText,
+        duration: questionAnswers[index]?.duration || 0,
+        projectId,
+        audioUrl: '', // Generated transcription doesn't have audio URL
+        createdAt: new Date()
+      } as Transcription;
+    }).filter(Boolean) as Transcription[];
+    
+    console.log(`📤 送信準備完了: ${completedTranscriptions.length}件のトランスクリプト`)
     onInterviewComplete(completedTranscriptions)
   }
 

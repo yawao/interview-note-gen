@@ -13,7 +13,11 @@ CRITICAL CONSTRAINTS:
 - answers.hasEvidenceがfalseの項目は、本文を「未回答」のみとし、推測で埋めない
 - 出力はJSONのみ。余計なテキストを含めない
 
-FORBIDDEN:
+FORBIDDEN ACTIONS (絶対禁止):
+- 入力配列に存在しない質問や回答を新規に作成しないこと
+- 未回答（空文字）はそのまま空として扱い、補完しないこと
+- Qの個数は配列長（最大7）に厳密一致。Q8以降は出力しないこと
+- 『質問内容が見つかりません』等のプレースホルダ文言は出力しないこと
 - 質問の新規作成・追加・削除・変更
 - 「質問内容が見つかりません」などの代替文言
 - 推測や常識による回答の補完
@@ -22,7 +26,8 @@ FORBIDDEN:
 OUTPUT FORMAT:
 - 厳密なJSONスキーマに従う
 - blocksの配列長は必ずinput.questions.lengthと一致
-- 各blockのorderは input.questions[i].orderと完全対応`
+- 各blockのorderは input.questions[i].orderと完全対応
+- 最大7個のblockまで。それを超える出力は禁止`
 
 /**
  * User プロンプト

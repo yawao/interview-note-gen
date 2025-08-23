@@ -5,6 +5,8 @@ import { InterviewPayload, Question, Answer, InterviewBlock } from '@/types/inte
 import { systemPrompt, userPrompt, interviewArticleSchema, validateResponseStructure } from '@/lib/prompt/interviewArticle'
 import { clampAndNormalizeBlocks, validateQuestionCount, validateUnansweredBlocks } from '@/lib/interview-validation'
 import { stripHeadingsAndBullets } from '@/lib/text/sanitize'
+import { normalizeInterview, sanitizeQAData } from '@/lib/qa-normalize'
+import type { QAInput } from '@/lib/qa-normalize'
 import { openai } from '@/lib/openai'
 
 export async function POST(req: NextRequest) {
@@ -43,22 +45,39 @@ export async function POST(req: NextRequest) {
     const questions = project.questions.map(q => q.content)
     const transcription = project.transcriptions[0].text // Use first transcription
     
-    console.log(`🚀 新方式での構造化インタビュー処理開始: 質問数=${questions.length}`)
+    console.log(`🚀 ダブルガード方式での構造化インタビュー処理開始: 質問数=${questions.length}`)
     
-    // 1) 既存の構造化抽出でevidenceベースの回答を取得
-    const structuredResult = await extractStructuredInterview(transcription, questions, {
+    // 1) APIレベルでのQ/A正規化（ダブルガード）
+    const rawQAInput: QAInput = {
+      questions: project.questions.map(q => q.content),
+      answers: [], // transcriptionから後で抽出
+      followUps: [],
+      metadata: { projectId, apiLevel: 'summarize' }
+    };
+    
+    const sanitizedInput = sanitizeQAData(rawQAInput);
+    const normalizedQA = normalizeInterview(sanitizedInput, {
+      maxQuestions: 7,
+      maxFollowUpsPerQ: 2,
+      allowEmptyAnswers: true
+    });
+    
+    console.log(`🔧 API側正規化完了: ${normalizedQA.questions.length}件（元: ${questions.length}件）`)
+    
+    // 2) 正規化されたQ配列で構造化抽出実行
+    const structuredResult = await extractStructuredInterview(transcription, normalizedQA.questions, {
       strict_no_autofill: true,
       exact_length_output: true,
       unanswered_token: '未回答'
     })
     
-    // 2) InterviewPayloadを組み立て
-    const payload: InterviewPayload = await buildInterviewPayload(project, structuredResult)
+    // 3) InterviewPayloadを組み立て
+    const payload: InterviewPayload = await buildInterviewPayload(project, structuredResult, normalizedQA)
     
-    // 3) JSON入出力による記事化LLM呼び出し
+    // 4) JSON入出力による記事化LLM呼び出し
     const articleBlocks = await generateArticleWithJsonIO(payload)
     
-    // 4) 最終バリデーション（N-in / N-out 保証）
+    // 5) 最終バリデーション（N-in / N-out 保証）
     const finalBlocks = clampAndNormalizeBlocks(payload, articleBlocks)
     
     // 5) バリデーション結果の確認
@@ -123,16 +142,19 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * DB/ストアから InterviewPayload を組み立て
+ * DB/ストアから InterviewPayload を組み立て（ダブルガード対応）
  */
-async function buildInterviewPayload(project: any, structuredResult: any): Promise<InterviewPayload> {
+async function buildInterviewPayload(project: any, structuredResult: any, normalizedQA?: any): Promise<InterviewPayload> {
   console.log('🔧 InterviewPayload組み立て開始')
   
+  // 正規化されたQ配列を使用（利用可能な場合）
+  const sourceQuestions = normalizedQA?.questions || project.questions.map((q: any) => q.content);
+  
   // Questionsを構築
-  const questions: Question[] = project.questions.map((q: any, index: number) => ({
-    id: q.id.toString(),
+  const questions: Question[] = sourceQuestions.map((qText: string, index: number) => ({
+    id: `q_${index + 1}`,
     order: index + 1,
-    text: q.content
+    text: qText
   }))
   
   // Answersを構築（structured resultから）

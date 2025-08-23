@@ -182,13 +182,19 @@ export default function Summarizer({ projectId, transcription, articleType, onAr
                         </div>
                       )
                     } else {
-                      // Treat as answer to implied question
+                      // Treat as answer to implied question (FIXED: stable index-based rendering)
                       const questionNum = questionCounter++;
                       const actualQuestion = questions[questionNum - 1]; // questions are 0-indexed, questionNum is 1-indexed
+                      
+                      // Skip rendering if no valid question exists (prevents contamination)
+                      if (!actualQuestion) {
+                        return null;
+                      }
+                      
                       return (
                         <div key={index} className="mb-4">
                           <div className="font-medium text-blue-700 mb-1">
-                            Q{questionNum}: {actualQuestion ? actualQuestion.content : '質問内容が見つかりません'}
+                            Q{questionNum}: {actualQuestion.content}
                           </div>
                           <div className="text-gray-700 ml-4">
                             {trimmedSection}
