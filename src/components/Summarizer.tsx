@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Article, Transcription, Question, ArticleType } from '@/types'
+import { Article, Transcription, Question, ArticleType, StructuredInterviewSummary } from '@/types'
 
 interface SummarizerProps {
   projectId: string
@@ -15,6 +15,7 @@ export default function Summarizer({ projectId, transcription, articleType, onAr
   const [error, setError] = useState('')
   const [article, setArticle] = useState<Article | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
+  const [structured, setStructured] = useState<StructuredInterviewSummary | null>(null)
 
   useEffect(() => {
     // Fetch project questions when component mounts
@@ -55,6 +56,12 @@ export default function Summarizer({ projectId, transcription, articleType, onAr
       if (!summaryResponse.ok) {
         const summaryError = await summaryResponse.json()
         throw new Error(summaryError.error || '要約の生成に失敗しました')
+      }
+
+      // 構造化レスポンスを状態に保存
+      const summaryResult = await summaryResponse.json()
+      if (summaryResult.structured) {
+        setStructured(summaryResult.structured)
       }
 
       // Then generate article
@@ -133,79 +140,37 @@ export default function Summarizer({ projectId, transcription, articleType, onAr
       <div className="mb-8">
         <h3 className="text-lg font-semibold mb-4">インタビュー内容（Q&A）</h3>
         <div className="p-4 bg-gray-50 rounded-lg max-h-96 overflow-y-auto">
-          <div className="text-sm whitespace-pre-wrap leading-relaxed">
-            {(() => {
-              const text = transcription.text;
-              
-              // Simple display that shows all content with proper formatting
-              const sections = text.split(/\n\n+/);
-              let questionCounter = 1;
-              
-              return (
-                <div className="space-y-4">
-                  {sections.map((section, index) => {
-                    const trimmedSection = section.trim();
-                    if (!trimmedSection) return null;
-                    
-                    if (trimmedSection.includes('【深掘り質問')) {
-                      // Follow-up question section
-                      const parts = trimmedSection.split(/【深掘り回答\d+】/);
-                      const questionPart = parts[0]?.replace(/【深掘り質問\d+】/, '').trim();
-                      const answerPart = parts[1]?.trim() || '';
-                      
-                      return (
-                        <div key={index} className="ml-6 border-l-2 border-purple-300 pl-4">
-                          <div className="font-medium text-purple-700 mb-1 text-sm">
-                            深掘り質問: {questionPart}
-                          </div>
-                          {answerPart && (
-                            <div className="text-gray-700 text-sm">
-                              回答: {answerPart}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    } else if (trimmedSection.startsWith('Q') && trimmedSection.includes(':')) {
-                      // Standard Q&A format
-                      const lines = trimmedSection.split('\n');
-                      const question = lines[0];
-                      const answer = lines.slice(1).join('\n').trim();
-                      
-                      return (
-                        <div key={index} className="mb-4">
-                          <div className="font-medium text-blue-700 mb-1">
-                            {question}
-                          </div>
-                          <div className="text-gray-700 ml-4">
-                            {answer}
-                          </div>
-                        </div>
-                      )
-                    } else {
-                      // Treat as answer to implied question (FIXED: stable index-based rendering)
-                      const questionNum = questionCounter++;
-                      const actualQuestion = questions[questionNum - 1]; // questions are 0-indexed, questionNum is 1-indexed
-                      
-                      // Skip rendering if no valid question exists (prevents contamination)
-                      if (!actualQuestion) {
-                        return null;
-                      }
-                      
-                      return (
-                        <div key={index} className="mb-4">
-                          <div className="font-medium text-blue-700 mb-1">
-                            Q{questionNum}: {actualQuestion.content}
-                          </div>
-                          <div className="text-gray-700 ml-4">
-                            {trimmedSection}
-                          </div>
-                        </div>
-                      )
-                    }
-                  })}
+          <div className="text-sm leading-relaxed">
+            {structured ? (
+              // NEW: 構造化レスポンス直接描画 (N-in/N-out保証)
+              <div className="space-y-4">
+                {structured.items.map((item, index) => (
+                  <div key={index} className="mb-4">
+                    <div className="font-medium text-blue-700 mb-1">
+                      Q{index + 1}: {item.question}
+                    </div>
+                    <div className="text-gray-700 ml-4 whitespace-pre-wrap">
+                      {item.answer ?? '未回答'}
+                    </div>
+                    {item.evidence && item.evidence.length > 0 && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        根拠: {item.evidence.map(e => `「${e}」`).join(' / ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // FALLBACK: 構造化データ取得前の表示
+              <div className="text-center text-gray-500 py-8">
+                <div className="animate-pulse">
+                  構造化データを読み込み中...
                 </div>
-              )
-            })()}
+                <div className="text-xs mt-2">
+                  記事生成ボタンを押すと、構造化されたQ&Aが表示されます
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
