@@ -198,7 +198,7 @@ VERIFICATION: 出力前に項目数が ${questionCount} であることを確認
       console.log('- 期待値:', questionCount)
       if (parsedData?.items?.length !== questionCount) {
         console.warn('⚠️ 項目数不一致が検出されました!')
-        console.log('実際の項目:', parsedData.items?.map(item => item.question) || [])
+        console.log('実際の項目:', parsedData.items?.map((item: any) => item.question) || [])
         
         // 強制的に質問数に合わせる
         if (parsedData?.items && Array.isArray(parsedData.items)) {

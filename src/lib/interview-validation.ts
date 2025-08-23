@@ -1,208 +1,108 @@
-import { StructuredInterviewSummary, InterviewItem, InterviewExtractionOptions } from '@/types'
+// N-in / N-out バリデーション & 正規化
+// 質問数の厳密制御と未回答項目の「未回答」固定
+
+import { InterviewPayload, InterviewBlock } from '@/types/interview'
 
 /**
- * インタビュー項目のスキーマ検証と正規化
+ * LLM出力を受けて、質問数制御とバリデーションを行う
+ * 入力質問数 = 出力ブロック数 を厳密に保証
  */
+export function clampAndNormalizeBlocks(
+  payload: InterviewPayload,
+  generated: InterviewBlock[]
+): InterviewBlock[] {
+  console.log('🔧 バリデーション開始')
+  console.log(`- 期待質問数: ${payload.questions.length}`)
+  console.log(`- LLM出力数: ${generated.length}`)
+  
+  // order昇順で正規化
+  const orderedQs = [...payload.questions].sort((a, b) => a.order - b.order)
+  const byOrder = new Map<number, {text: string; hasEvidence: boolean}>()
+  const ansByQ = new Map(payload.answers.map(a => [a.questionId, a]))
 
-export class InterviewValidationError extends Error {
-  constructor(message: string, public violations: string[]) {
-    super(message)
-    this.name = 'InterviewValidationError'
+  for (const q of orderedQs) {
+    const ans = ansByQ.get(q.id)
+    byOrder.set(q.order, { 
+      text: q.text, 
+      hasEvidence: !!ans?.hasEvidence && !!ans?.text?.trim()
+    })
   }
+
+  // LLM出力を order -> block に写像しつつ、不整合は修正
+  const picked: InterviewBlock[] = []
+  for (const q of orderedQs) {
+    const fromModel = generated.find(b => b.order === q.order)
+    const hasEvidence = byOrder.get(q.order)!.hasEvidence
+    
+    let body: string
+    if (!hasEvidence) {
+      // 根拠なし項目は強制的に「未回答」
+      body = "未回答"
+    } else {
+      // 根拠あり項目でもLLMが空文字や不適切な内容を返した場合は「未回答」
+      body = fromModel?.body?.trim() || "未回答"
+      if (body === "" || body.includes("質問内容が見つかりません")) {
+        body = "未回答"
+      }
+    }
+    
+    picked.push({
+      order: q.order,
+      question: q.text,
+      body: body
+    })
+  }
+  
+  console.log(`✅ 正規化完了: ${picked.length}ブロック（= ${payload.questions.length}質問）`)
+  return picked // 長さは常に questions.length
 }
 
 /**
- * 基本的なスキーマ検証
+ * 既存のバリデーション関数との互換性維持
+ * 従来のStructuredInterviewSummaryとの連携用
  */
-export function validateInterviewSummary(
-  data: any,
-  expectedQuestionCount: number
+export function validateQuestionCount(
+  questions: string[],
+  blocks: InterviewBlock[]
+): { isValid: boolean; message?: string } {
+  if (blocks.length !== questions.length) {
+    return {
+      isValid: false,
+      message: `質問数不一致: 期待${questions.length}、実際${blocks.length}`
+    }
+  }
+  
+  return { isValid: true }
+}
+
+/**
+ * 未回答項目の検証
+ * hasEvidence=false の項目が適切に「未回答」になっているか確認
+ */
+export function validateUnansweredBlocks(
+  payload: InterviewPayload,
+  blocks: InterviewBlock[]
 ): { isValid: boolean; violations: string[] } {
   const violations: string[] = []
-
-  // 基本構造チェック
-  if (!data || typeof data !== 'object') {
-    violations.push('データがオブジェクトではありません')
-    return { isValid: false, violations }
-  }
-
-  if (!Array.isArray(data.items)) {
-    violations.push('items が配列ではありません')
-    return { isValid: false, violations }
-  }
-
-  // 件数チェック
-  if (data.items.length !== expectedQuestionCount) {
-    violations.push(`項目数が期待値と異なります: 期待=${expectedQuestionCount}, 実際=${data.items.length}`)
-  }
-
-  // 各項目のチェック
-  data.items.forEach((item: any, index: number) => {
-    const prefix = `項目[${index}]:`
-
-    if (typeof item.question !== 'string') {
-      violations.push(`${prefix} question が文字列ではありません`)
-    }
-
-    if (item.answer !== null && typeof item.answer !== 'string') {
-      violations.push(`${prefix} answer が null または文字列ではありません`)
-    }
-
-    if (!['answered', 'unanswered'].includes(item.status)) {
-      violations.push(`${prefix} status が 'answered' または 'unanswered' ではありません`)
-    }
-
-    if (!Array.isArray(item.evidence)) {
-      violations.push(`${prefix} evidence が配列ではありません`)
-    }
-
-    // answered の場合の制約チェック
-    if (item.status === 'answered') {
-      if (item.answer === null || item.answer === '') {
-        violations.push(`${prefix} status=answered なのに answer が空です`)
-      }
-      
-      if (!item.evidence || item.evidence.length === 0) {
-        violations.push(`${prefix} status=answered なのに evidence が空です`)
-      }
-    }
-
-    // unanswered の場合の制約チェック
-    if (item.status === 'unanswered') {
-      if (item.answer !== null) {
-        violations.push(`${prefix} status=unanswered なのに answer が null ではありません`)
-      }
-    }
-  })
-
-  return { isValid: violations.length === 0, violations }
-}
-
-/**
- * 根拠の真正性チェック
- */
-export function validateEvidence(evidence: string[], transcript: string): boolean {
-  if (!evidence || evidence.length === 0) return false
+  const ansByQ = new Map(payload.answers.map(a => [a.questionId, a]))
   
-  return evidence.every(quote => {
-    // 引用がトランスクリプトに実在するかチェック
-    const normalizedQuote = quote.trim().toLowerCase()
-    const normalizedTranscript = transcript.toLowerCase()
-    return normalizedTranscript.includes(normalizedQuote)
-  })
-}
-
-/**
- * データの防御的正規化
- */
-export function normalizeInterviewSummary(
-  data: any,
-  questions: string[],
-  transcript: string,
-  options: InterviewExtractionOptions = {
-    strict_no_autofill: true,
-    exact_length_output: true,
-    unanswered_token: '未回答'
-  }
-): StructuredInterviewSummary {
-  const items: InterviewItem[] = []
-
-  // 期待される質問数まで処理
-  for (let i = 0; i < questions.length; i++) {
-    const question = questions[i]
-    let item: InterviewItem
-
-    if (data?.items && data.items[i]) {
-      const rawItem = data.items[i]
-      
-      // 基本的なデータ整形
-      item = {
-        question: question, // 元の質問を使用
-        answer: rawItem.answer || null,
-        status: rawItem.status || 'unanswered',
-        evidence: Array.isArray(rawItem.evidence) ? rawItem.evidence : []
-      }
-
-      // answered状態の検証と修正
-      if (item.status === 'answered') {
-        // 回答が空または根拠が無効な場合はunansweredにダウンシフト
-        if (!item.answer || 
-            item.evidence.length === 0 || 
-            !validateEvidence(item.evidence, transcript)) {
-          item = {
-            question: question,
-            answer: null,
-            status: 'unanswered',
-            evidence: []
-          }
-        }
-      }
-
-      // unanswered状態の強制
-      if (item.status === 'unanswered') {
-        item.answer = null
-        item.evidence = []
-      }
-    } else {
-      // データがない場合は未回答でパディング
-      item = {
-        question: question,
-        answer: null,
-        status: 'unanswered',
-        evidence: []
-      }
+  for (const block of blocks) {
+    const question = payload.questions.find(q => q.order === block.order)
+    if (!question) continue
+    
+    const answer = ansByQ.get(question.id)
+    const hasEvidence = !!answer?.hasEvidence && !!answer?.text?.trim()
+    
+    if (!hasEvidence && block.body !== "未回答") {
+      violations.push(`Q${block.order}: 根拠なしなのに「${block.body}」が設定されている`)
     }
-
-    items.push(item)
   }
-
-  return { items }
-}
-
-/**
- * LLM出力の修復プロンプト生成
- */
-export function generateRepairPrompt(
-  originalData: any,
-  violations: string[],
-  expectedQuestionCount: number
-): string {
-  return `前回出力はスキーマ違反です。以下の違反点を修正して、JSON形式で再出力してください：
-
-違反点：
-${violations.map(v => `- ${v}`).join('\n')}
-
-修正要件：
-- items の件数をちょうど ${expectedQuestionCount} にしてください
-- status が "answered" の場合は evidence を最低1件含めてください
-- status が "unanswered" の場合は answer を null にしてください
-- JSON形式のみで出力し、余計な文章は含めないでください
-
-修正後のJSONを出力してください：`
-}
-
-/**
- * デバッグ情報の生成
- */
-export function generateDebugInfo(
-  data: any,
-  questions: string[],
-  transcript: string
-): string {
-  const validation = validateInterviewSummary(data, questions.length)
   
-  return `
-=== インタビュー抽出デバッグ情報 ===
-質問数: ${questions.length}
-項目数: ${data?.items?.length || 0}
-バリデーション: ${validation.isValid ? '✅ 合格' : '❌ 失敗'}
-
-${validation.violations.length > 0 ? `
-違反点:
-${validation.violations.map(v => `- ${v}`).join('\n')}
-` : ''}
-
-トランスクリプト長: ${transcript.length}文字
-生データ: ${JSON.stringify(data, null, 2)}
-`
+  return {
+    isValid: violations.length === 0,
+    violations
+  }
 }
+
+// 既存のopenai.tsとの互換性維持のため、旧関数を残す
+export * from './interview-validation-legacy'
