@@ -4,18 +4,18 @@ import { useState } from 'react'
 import { Project, Question, Transcription, Summary, Article, ArticleType } from '@/types'
 import InterviewSetup from './InterviewSetup'
 import InteractiveInterview from './InteractiveInterview'
-import Summarizer from './Summarizer'
-import ArticleDraft from './ArticleDraft'
-import DraftView from './DraftView'
+// import Summarizer from './Summarizer'      // 非表示化のため一時コメント
+// import ArticleDraft from './ArticleDraft'  // 非表示化のため一時コメント
+// import DraftView from './DraftView'        // 非表示化のため一時コメント
 
-type WorkflowStep = 'setup' | 'record' | 'analyze' | 'draft' | 'complete'
-type ViewMode = 'workflow' | 'tabs'
-type TabType = 'draft' | 'qa' | 'setup'
+type WorkflowStep = 'setup' | 'record' | 'complete'
+// type ViewMode = 'workflow' | 'tabs'         // 非表示化のため一時コメント
+// type TabType = 'draft' | 'qa' | 'setup'     // 非表示化のため一時コメント
 
 export default function InterviewWorkflow() {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('setup')
-  const [viewMode, setViewMode] = useState<ViewMode>('tabs')
-  const [activeTab, setActiveTab] = useState<TabType>('draft')
+  // const [viewMode, setViewMode] = useState<ViewMode>('tabs')                          // 非表示化のため一時コメント
+  // const [activeTab, setActiveTab] = useState<TabType>('draft')                        // 非表示化のため一時コメント
   const [project, setProject] = useState<Project | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
@@ -86,60 +86,62 @@ export default function InterviewWorkflow() {
       setCombinedTranscription(combined)
     }
     
-    // インタビュー完了後は記録完了状態で待機（analyzeステップは削除）
-  }
-
-  const handleArticleGenerated = (newArticle: Article) => {
-    setArticle(newArticle)
+    // インタビュー完了後は直接completeに遷移（記事作成機能は非表示化）
     setCurrentStep('complete')
   }
 
-  const generateArticle = async () => {
-    if (!project || !combinedTranscription) return
+  // 非表示化のため一時コメント（将来復活用）
+  // const handleArticleGenerated = (newArticle: Article) => {
+  //   setArticle(newArticle)
+  //   setCurrentStep('complete')
+  // }
 
-    setIsGeneratingArticle(true)
+  // const generateArticle = async () => {
+  //   if (!project || !combinedTranscription) return
 
-    try {
-      // 記事生成処理（既存のSummarizer相当）
-      // 1. 要約生成
-      const summaryResponse = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ projectId: project.id }),
-      })
+  //   setIsGeneratingArticle(true)
 
-      if (!summaryResponse.ok) {
-        throw new Error('要約の生成に失敗しました')
-      }
+  //   try {
+  //     // 記事生成処理（既存のSummarizer相当）
+  //     // 1. 要約生成
+  //     const summaryResponse = await fetch('/api/summarize', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({ projectId: project.id }),
+  //     })
 
-      // 2. 記事生成
-      const articleResponse = await fetch('/api/draft', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          projectId: project.id,
-          articleType: selectedArticleType,
-          language: 'ja'
-        }),
-      })
+  //     if (!summaryResponse.ok) {
+  //       throw new Error('要約の生成に失敗しました')
+  //     }
 
-      if (!articleResponse.ok) {
-        throw new Error('記事の生成に失敗しました')
-      }
+  //     // 2. 記事生成
+  //     const articleResponse = await fetch('/api/draft', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         projectId: project.id,
+  //         articleType: selectedArticleType,
+  //         language: 'ja'
+  //       }),
+  //     })
 
-      const generatedArticle: Article = await articleResponse.json()
-      handleArticleGenerated(generatedArticle)
-    } catch (error) {
-      console.error('記事生成エラー:', error)
-      alert('記事の生成に失敗しました。もう一度お試しください。')
-    } finally {
-      setIsGeneratingArticle(false)
-    }
-  }
+  //     if (!articleResponse.ok) {
+  //       throw new Error('記事の生成に失敗しました')
+  //     }
+
+  //     const generatedArticle: Article = await articleResponse.json()
+  //     handleArticleGenerated(generatedArticle)
+  //   } catch (error) {
+  //     console.error('記事生成エラー:', error)
+  //     alert('記事の生成に失敗しました。もう一度お試しください。')
+  //   } finally {
+  //     setIsGeneratingArticle(false)
+  //   }
+  // }
 
   const resetWorkflow = () => {
     setCurrentStep('setup')
@@ -151,124 +153,126 @@ export default function InterviewWorkflow() {
     setArticle(null)
   }
 
-  const renderTabNavigation = () => {
-    const tabs = [
-      { key: 'draft' as TabType, label: 'Draft', icon: '📝', description: '記事生成・編集' },
-      { key: 'qa' as TabType, label: 'Q&A', icon: '💬', description: '質問・回答一覧' },
-      { key: 'setup' as TabType, label: 'Setup', icon: '⚙️', description: 'プロジェクト設定' }
-    ]
+  // 非表示化のため一時コメント（将来復活用）
+  // const renderTabNavigation = () => {
+  //   const tabs = [
+  //     { key: 'draft' as TabType, label: 'Draft', icon: '📝', description: '記事生成・編集' },
+  //     { key: 'qa' as TabType, label: 'Q&A', icon: '💬', description: '質問・回答一覧' },
+  //     { key: 'setup' as TabType, label: 'Setup', icon: '⚙️', description: 'プロジェクト設定' }
+  //   ]
 
-    return (
-      <div className="border-b border-gray-200 mb-6">
-        <div className="flex space-x-8">
-          {tabs.map((tab) => {
-            const isActive = tab.key === activeTab
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`
-                  py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200
-                  ${isActive 
-                    ? 'border-blue-500 text-blue-600' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }
-                `}
-              >
-                <div className="flex items-center space-x-2">
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </div>
-                <div className="text-xs mt-1 text-gray-400">
-                  {tab.description}
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
+  //   return (
+  //     <div className="border-b border-gray-200 mb-6">
+  //       <div className="flex space-x-8">
+  //         {tabs.map((tab) => {
+  //           const isActive = tab.key === activeTab
+  //           return (
+  //             <button
+  //               key={tab.key}
+  //               onClick={() => setActiveTab(tab.key)}
+  //               className={`
+  //                 py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200
+  //                 ${isActive 
+  //                   ? 'border-blue-500 text-blue-600' 
+  //                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+  //                 }
+  //               `}
+  //             >
+  //               <div className="flex items-center space-x-2">
+  //                 <span>{tab.icon}</span>
+  //                 <span>{tab.label}</span>
+  //               </div>
+  //               <div className="text-xs mt-1 text-gray-400">
+  //                 {tab.description}
+  //               </div>
+  //             </button>
+  //           )
+  //         })}
+  //       </div>
+  //     </div>
+  //   )
+  // }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'draft':
-        if (!project) {
-          return (
-            <div className="text-center py-12">
-              <p className="text-gray-500">プロジェクトを作成してから記事の作成を開始してください</p>
-              <button
-                onClick={() => setActiveTab('setup')}
-                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                セットアップに移動
-              </button>
-            </div>
-          )
-        }
-        return <DraftView projectId={project.id} />
+  // 非表示化のため一時コメント（将来復活用）
+  // const renderTabContent = () => {
+  //   switch (activeTab) {
+  //     case 'draft':
+  //       if (!project) {
+  //         return (
+  //           <div className="text-center py-12">
+  //             <p className="text-gray-500">プロジェクトを作成してから記事の作成を開始してください</p>
+  //             <button
+  //               onClick={() => setActiveTab('setup')}
+  //               className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+  //             >
+  //               セットアップに移動
+  //             </button>
+  //           </div>
+  //         )
+  //       }
+  //       return <DraftView projectId={project.id} />
       
-      case 'qa':
-        if (!project) {
-          return (
-            <div className="text-center py-12">
-              <p className="text-gray-500">プロジェクトを作成してからQ&Aを確認できます</p>
-              <button
-                onClick={() => setActiveTab('setup')}
-                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                セットアップに移動
-              </button>
-            </div>
-          )
-        }
-        if (!combinedTranscription) {
-          return (
-            <div className="text-center py-12">
-              <p className="text-gray-500">インタビューを完了してからQ&Aを確認できます</p>
-              <button
-                onClick={() => setViewMode('workflow')}
-                className="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-              >
-                インタビューを開始
-              </button>
-            </div>
-          )
-        }
-        return (
-          <Summarizer
-            projectId={project.id}
-            transcription={combinedTranscription}
-            articleType={selectedArticleType}
-            onArticleComplete={handleArticleGenerated}
-          />
-        )
+  //     case 'qa':
+  //       if (!project) {
+  //         return (
+  //           <div className="text-center py-12">
+  //             <p className="text-gray-500">プロジェクトを作成してからQ&Aを確認できます</p>
+  //             <button
+  //               onClick={() => setActiveTab('setup')}
+  //               className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+  //             >
+  //               セットアップに移動
+  //             </button>
+  //           </div>
+  //         )
+  //       }
+  //       if (!combinedTranscription) {
+  //         return (
+  //           <div className="text-center py-12">
+  //             <p className="text-gray-500">インタビューを完了してからQ&Aを確認できます</p>
+  //             <button
+  //               onClick={() => setViewMode('workflow')}
+  //               className="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+  //             >
+  //               インタビューを開始
+  //             </button>
+  //           </div>
+  //         )
+  //       }
+  //       return (
+  //         <Summarizer
+  //           projectId={project.id}
+  //           transcription={combinedTranscription}
+  //           articleType={selectedArticleType}
+  //           onArticleComplete={handleArticleGenerated}
+  //         />
+  //       )
       
-      case 'setup':
-        return (
-          <div className="space-y-8">
-            <InterviewSetup
-              onProjectCreated={handleProjectCreated}
-              onQuestionsGenerated={handleQuestionsGenerated}
-              onArticleTypeSelected={handleArticleTypeSelected}
-            />
-            {project && questions.length > 0 && (
-              <div className="text-center">
-                <button
-                  onClick={() => setViewMode('workflow')}
-                  className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700"
-                >
-                  インタビュー録音を開始
-                </button>
-              </div>
-            )}
-          </div>
-        )
+  //     case 'setup':
+  //       return (
+  //         <div className="space-y-8">
+  //           <InterviewSetup
+  //             onProjectCreated={handleProjectCreated}
+  //             onQuestionsGenerated={handleQuestionsGenerated}
+  //             onArticleTypeSelected={handleArticleTypeSelected}
+  //           />
+  //           {project && questions.length > 0 && (
+  //             <div className="text-center">
+  //               <button
+  //                 onClick={() => setViewMode('workflow')}
+  //                 className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700"
+  //               >
+  //                 インタビュー録音を開始
+  //               </button>
+  //             </div>
+  //           )}
+  //         </div>
+  //       )
       
-      default:
-        return null
-    }
-  }
+  //     default:
+  //       return null
+  //   }
+  // }
 
   const canNavigateToStep = (targetStep: WorkflowStep): boolean => {
     switch (targetStep) {
@@ -277,7 +281,7 @@ export default function InterviewWorkflow() {
       case 'record':
         return project !== null && questions.length > 0
       case 'complete':
-        return project !== null && article !== null
+        return project !== null && combinedTranscription !== null // 録音完了で遷移可能
       default:
         return false
     }
@@ -368,6 +372,23 @@ export default function InterviewWorkflow() {
         )
       
       case 'complete':
+        return (
+          <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+            <h2 className="text-2xl font-bold text-green-600">録音が完了しました。</h2>
+            
+            <div className="mt-8">
+              <button
+                onClick={resetWorkflow}
+                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
+              >
+                新しいインタビューを開始
+              </button>
+            </div>
+          </div>
+        )
+        
+        // 以下、記事作成関連のUI（将来の復元用）
+        /*
         if (!article) return null
         return (
           <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
@@ -391,7 +412,6 @@ export default function InterviewWorkflow() {
               </div>
             )}
 
-            {/* Article Display */}
             <div className="border rounded-lg mb-6">
               <div className="border-b p-4 bg-gray-50">
                 <h4 className="text-xl font-bold">{article.title}</h4>
@@ -412,7 +432,6 @@ export default function InterviewWorkflow() {
                 </div>
               </div>
 
-              {/* Download Actions */}
               <div className="border-t p-4 bg-gray-50">
                 <h5 className="text-sm font-medium text-gray-700 mb-3">ダウンロード:</h5>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -466,6 +485,7 @@ export default function InterviewWorkflow() {
             </div>
           </div>
         )
+        */
       
       default:
         return null
@@ -488,9 +508,9 @@ export default function InterviewWorkflow() {
                 </p>
               </div>
               
-              {/* 記事生成ボタンとモード切替 */}
+              {/* 記事生成ボタンとモード切替（コメントアウト - 将来の復元用） */}
+              {/*
               <div className="flex space-x-3 items-center">
-                {/* 記事生成ボタン */}
                 {viewMode === 'workflow' && project && combinedTranscription && (
                   <button
                     onClick={generateArticle}
@@ -508,7 +528,6 @@ export default function InterviewWorkflow() {
                   </button>
                 )}
 
-                {/* モード切替ボタン */}
                 <div className="flex space-x-2">
                   <button
                     onClick={() => setViewMode('tabs')}
@@ -532,28 +551,33 @@ export default function InterviewWorkflow() {
                   </button>
                 </div>
               </div>
+              */}
             </div>
           </div>
         </div>
 
         <div className="max-w-6xl mx-auto px-4 pb-8">
+          {/* インタビューワークフローのみ表示 */}
+          <>
+            {/* プログレスステップ */}
+            {renderSteps()}
+            
+            {/* ワークフローコンテンツ */}
+            {renderCurrentStep()}
+          </>
+          
+          {/* コメントアウト: 記事作成モード切り替え関連（将来の復元用） */}
+          {/*
           {viewMode === 'tabs' ? (
             <>
-              {/* タブナビゲーション */}
               {renderTabNavigation()}
-              
-              {/* タブコンテンツ */}
               {renderTabContent()}
             </>
           ) : (
             <>
-              {/* プログレスステップ */}
               {renderSteps()}
-              
-              {/* ワークフローコンテンツ */}
               {renderCurrentStep()}
               
-              {/* タブモードに戻るボタン */}
               {(currentStep === 'complete' || combinedTranscription) && (
                 <div className="text-center mt-8">
                   <button
@@ -566,6 +590,7 @@ export default function InterviewWorkflow() {
               )}
             </>
           )}
+          */}
         </div>
       </div>
     </div>
