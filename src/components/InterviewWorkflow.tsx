@@ -23,6 +23,7 @@ export default function InterviewWorkflow() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [article, setArticle] = useState<Article | null>(null)
   const [selectedArticleType, setSelectedArticleType] = useState<ArticleType>('BLOG_POST')
+  const [isGeneratingArticle, setIsGeneratingArticle] = useState(false)
 
   const handleProjectCreated = (newProject: Project) => {
     setProject(newProject)
@@ -85,12 +86,59 @@ export default function InterviewWorkflow() {
       setCombinedTranscription(combined)
     }
     
-    setCurrentStep('analyze')
+    // インタビュー完了後は記録完了状態で待機（analyzeステップは削除）
   }
 
   const handleArticleGenerated = (newArticle: Article) => {
     setArticle(newArticle)
     setCurrentStep('complete')
+  }
+
+  const generateArticle = async () => {
+    if (!project || !combinedTranscription) return
+
+    setIsGeneratingArticle(true)
+
+    try {
+      // 記事生成処理（既存のSummarizer相当）
+      // 1. 要約生成
+      const summaryResponse = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ projectId: project.id }),
+      })
+
+      if (!summaryResponse.ok) {
+        throw new Error('要約の生成に失敗しました')
+      }
+
+      // 2. 記事生成
+      const articleResponse = await fetch('/api/draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          articleType: selectedArticleType,
+          language: 'ja'
+        }),
+      })
+
+      if (!articleResponse.ok) {
+        throw new Error('記事の生成に失敗しました')
+      }
+
+      const generatedArticle: Article = await articleResponse.json()
+      handleArticleGenerated(generatedArticle)
+    } catch (error) {
+      console.error('記事生成エラー:', error)
+      alert('記事の生成に失敗しました。もう一度お試しください。')
+    } finally {
+      setIsGeneratingArticle(false)
+    }
   }
 
   const resetWorkflow = () => {
@@ -228,10 +276,6 @@ export default function InterviewWorkflow() {
         return true // Always can go back to setup
       case 'record':
         return project !== null && questions.length > 0
-      case 'analyze':
-        return project !== null && combinedTranscription !== null
-      case 'draft':
-        return project !== null && article !== null // Changed to check article instead of summary
       case 'complete':
         return project !== null && article !== null
       default:
@@ -249,8 +293,6 @@ export default function InterviewWorkflow() {
     const steps = [
       { key: 'setup', label: 'Setup', icon: '📝' },
       { key: 'record', label: 'Record', icon: '🎤' },
-      { key: 'analyze', label: 'Analyze', icon: '🔍' },
-      { key: 'draft', label: 'Draft', icon: '📄' },
       { key: 'complete', label: 'Complete', icon: '✅' },
     ] as const
 
@@ -323,39 +365,6 @@ export default function InterviewWorkflow() {
             projectId={project.id}
             onInterviewComplete={handleInterviewComplete}
           />
-        )
-      
-      case 'analyze':
-        if (!project || !combinedTranscription) return null
-        return (
-          <Summarizer
-            projectId={project.id}
-            transcription={combinedTranscription}
-            articleType={selectedArticleType}
-            onArticleComplete={handleArticleGenerated}
-          />
-        )
-      
-      case 'draft':
-        if (!project || !article) return null
-        return (
-          <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold mb-6">記事完成</h2>
-            <div className="text-center">
-              <div className="text-green-600 text-lg mb-4">
-                ✓ 記事が正常に生成されました！
-              </div>
-              <p className="text-gray-600 mb-6">
-                「Complete」ステップで記事をご確認ください。
-              </p>
-              <button
-                onClick={() => setCurrentStep('complete')}
-                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
-              >
-                記事を確認する
-              </button>
-            </div>
-          </div>
         )
       
       case 'complete':
@@ -479,28 +488,49 @@ export default function InterviewWorkflow() {
                 </p>
               </div>
               
-              {/* モード切替ボタン */}
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setViewMode('tabs')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'tabs'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  記事作成モード
-                </button>
-                <button
-                  onClick={() => setViewMode('workflow')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    viewMode === 'workflow'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  インタビューモード
-                </button>
+              {/* 記事生成ボタンとモード切替 */}
+              <div className="flex space-x-3 items-center">
+                {/* 記事生成ボタン */}
+                {viewMode === 'workflow' && project && combinedTranscription && (
+                  <button
+                    onClick={generateArticle}
+                    disabled={isGeneratingArticle}
+                    className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center space-x-2"
+                  >
+                    {isGeneratingArticle ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>生成中...</span>
+                      </>
+                    ) : (
+                      <span>記事を生成</span>
+                    )}
+                  </button>
+                )}
+
+                {/* モード切替ボタン */}
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setViewMode('tabs')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'tabs'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    記事作成モード
+                  </button>
+                  <button
+                    onClick={() => setViewMode('workflow')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'workflow'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    インタビューモード
+                  </button>
+                </div>
               </div>
             </div>
           </div>
