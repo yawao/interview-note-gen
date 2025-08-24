@@ -6,11 +6,16 @@ import InterviewSetup from './InterviewSetup'
 import InteractiveInterview from './InteractiveInterview'
 import Summarizer from './Summarizer'
 import ArticleDraft from './ArticleDraft'
+import DraftView from './DraftView'
 
 type WorkflowStep = 'setup' | 'record' | 'analyze' | 'draft' | 'complete'
+type ViewMode = 'workflow' | 'tabs'
+type TabType = 'draft' | 'qa' | 'setup'
 
 export default function InterviewWorkflow() {
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('setup')
+  const [viewMode, setViewMode] = useState<ViewMode>('tabs')
+  const [activeTab, setActiveTab] = useState<TabType>('draft')
   const [project, setProject] = useState<Project | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([])
@@ -96,6 +101,125 @@ export default function InterviewWorkflow() {
     setCombinedTranscription(null)
     setSummary(null)
     setArticle(null)
+  }
+
+  const renderTabNavigation = () => {
+    const tabs = [
+      { key: 'draft' as TabType, label: 'Draft', icon: '📝', description: '記事生成・編集' },
+      { key: 'qa' as TabType, label: 'Q&A', icon: '💬', description: '質問・回答一覧' },
+      { key: 'setup' as TabType, label: 'Setup', icon: '⚙️', description: 'プロジェクト設定' }
+    ]
+
+    return (
+      <div className="border-b border-gray-200 mb-6">
+        <div className="flex space-x-8">
+          {tabs.map((tab) => {
+            const isActive = tab.key === activeTab
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`
+                  py-4 px-2 border-b-2 font-medium text-sm transition-colors duration-200
+                  ${isActive 
+                    ? 'border-blue-500 text-blue-600' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <div className="flex items-center space-x-2">
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </div>
+                <div className="text-xs mt-1 text-gray-400">
+                  {tab.description}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'draft':
+        if (!project) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-gray-500">プロジェクトを作成してから記事の作成を開始してください</p>
+              <button
+                onClick={() => setActiveTab('setup')}
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                セットアップに移動
+              </button>
+            </div>
+          )
+        }
+        return <DraftView projectId={project.id} />
+      
+      case 'qa':
+        if (!project) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-gray-500">プロジェクトを作成してからQ&Aを確認できます</p>
+              <button
+                onClick={() => setActiveTab('setup')}
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+              >
+                セットアップに移動
+              </button>
+            </div>
+          )
+        }
+        if (!combinedTranscription) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-gray-500">インタビューを完了してからQ&Aを確認できます</p>
+              <button
+                onClick={() => setViewMode('workflow')}
+                className="mt-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+              >
+                インタビューを開始
+              </button>
+            </div>
+          )
+        }
+        return (
+          <Summarizer
+            projectId={project.id}
+            transcription={combinedTranscription}
+            articleType={selectedArticleType}
+            onArticleComplete={handleArticleGenerated}
+          />
+        )
+      
+      case 'setup':
+        return (
+          <div className="space-y-8">
+            <InterviewSetup
+              onProjectCreated={handleProjectCreated}
+              onQuestionsGenerated={handleQuestionsGenerated}
+              onArticleTypeSelected={handleArticleTypeSelected}
+            />
+            {project && questions.length > 0 && (
+              <div className="text-center">
+                <button
+                  onClick={() => setViewMode('workflow')}
+                  className="bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700"
+                >
+                  インタビュー録音を開始
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      
+      default:
+        return null
+    }
   }
 
   const canNavigateToStep = (targetStep: WorkflowStep): boolean => {
@@ -344,22 +468,74 @@ export default function InterviewWorkflow() {
       <div className="w-full">
         {/* Header */}
         <div className="bg-white shadow-sm border-b">
-          <div className="max-w-6xl mx-auto px-4 py-8 text-center">
-            <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
-              AI Interviewer SaaS
-            </h1>
-            <p className="text-lg text-gray-600">
-              Transform interviews into articles with AI
-            </p>
+          <div className="max-w-6xl mx-auto px-4 py-8">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-2">
+                  AI Interviewer SaaS
+                </h1>
+                <p className="text-lg text-gray-600">
+                  Transform interviews into articles with AI
+                </p>
+              </div>
+              
+              {/* モード切替ボタン */}
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setViewMode('tabs')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'tabs'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  記事作成モード
+                </button>
+                <button
+                  onClick={() => setViewMode('workflow')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'workflow'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  インタビューモード
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Progress Steps */}
-        {renderSteps()}
-
-        {/* Current Step Content */}
         <div className="max-w-6xl mx-auto px-4 pb-8">
-          {renderCurrentStep()}
+          {viewMode === 'tabs' ? (
+            <>
+              {/* タブナビゲーション */}
+              {renderTabNavigation()}
+              
+              {/* タブコンテンツ */}
+              {renderTabContent()}
+            </>
+          ) : (
+            <>
+              {/* プログレスステップ */}
+              {renderSteps()}
+              
+              {/* ワークフローコンテンツ */}
+              {renderCurrentStep()}
+              
+              {/* タブモードに戻るボタン */}
+              {(currentStep === 'complete' || combinedTranscription) && (
+                <div className="text-center mt-8">
+                  <button
+                    onClick={() => setViewMode('tabs')}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
+                  >
+                    記事作成モードに切り替える
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

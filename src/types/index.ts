@@ -159,3 +159,32 @@ export const HOWTO_OUTLINE_SKELETON: OutlineSection[] = [
   { id: 'faq', order: 5, heading: 'FAQ', sectionType: 'faq' },
   { id: 'cta', order: 6, heading: '次のアクション', sectionType: 'cta' }
 ];
+
+// 新しいDraft画面用の型定義
+export interface ComposeArticleRequest {
+  questions: Array<{ id: string; text: string }>;
+  answers: Array<{ qid: string; text: string }>;
+  notes?: Array<{ id: string; text: string }>;
+  options?: {
+    normalize?: boolean;
+    max_sections?: number;
+  };
+}
+
+export interface ArticleOutlineSection {
+  id: string;
+  title: string;
+}
+
+export interface ArticleDraftSection {
+  section_id: string;
+  html: string;
+  sources: string[];
+  confidence: number;
+}
+
+export interface ComposeArticleResponse {
+  outline: ArticleOutlineSection[];
+  draft: ArticleDraftSection[];
+  coverage: Record<string, number>;
+}

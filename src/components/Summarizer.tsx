@@ -150,7 +150,7 @@ export default function Summarizer({ projectId, transcription, articleType, onAr
                       Q{index + 1}: {item.question}
                     </div>
                     <div className="text-gray-700 ml-4 whitespace-pre-wrap">
-                      {item.answer ?? '未回答'}
+                      {item.answer || ''}
                     </div>
                     {item.evidence && item.evidence.length > 0 && (
                       <div className="mt-1 text-xs text-gray-500">
