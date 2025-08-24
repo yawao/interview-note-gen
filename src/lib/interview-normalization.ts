@@ -8,6 +8,7 @@ export interface NormalizeInput {
   items: InterviewItem[];
   questions: Question[];
   transcript: string;
+  strictEvidence?: boolean;
 }
 
 export interface NormalizeOutput {
@@ -31,7 +32,8 @@ export interface NormalizeOutput {
 export function normalizeInterviewSummary({
   items,
   questions,
-  transcript
+  transcript,
+  strictEvidence = true
 }: NormalizeInput): NormalizeOutput {
   console.log('🔧 Interview Summary正規化開始');
   console.log(`- 入力items: ${items.length}件`);
@@ -70,43 +72,49 @@ export function normalizeInterviewSummary({
       };
     }
 
-    // answered項目の厳格検証
-    const hasEvidence = Array.isArray(item.evidence) && item.evidence.length > 0;
-    if (!hasEvidence) {
-      console.debug(`❌ Q${index + 1}: evidence配列が空 → unansweredへダウンシフト`);
-      downgradedCount++;
-      return {
-        ...item,
-        status: 'unanswered' as const,
-        answer: null,
-        evidence: []
-      };
+    // answered項目の厳格検証（strictEvidenceがtrueの場合のみ）
+    if (strictEvidence) {
+      const hasEvidence = Array.isArray(item.evidence) && item.evidence.length > 0;
+      if (!hasEvidence) {
+        console.debug(`❌ Q${index + 1}: evidence配列が空 → unansweredへダウンシフト`);
+        downgradedCount++;
+        return {
+          ...item,
+          status: 'unanswered' as const,
+          answer: null,
+          evidence: []
+        };
+      }
     }
 
-    // Evidence品質分析
-    const quality = analyzeEvidenceQuality(item.evidence, transcript);
-    totalEvidenceQuality += quality.qualityScore;
+    // Evidence品質分析（strictEvidenceがtrueの場合のみ）
+    if (strictEvidence) {
+      const quality = analyzeEvidenceQuality(item.evidence, transcript);
+      totalEvidenceQuality += quality.qualityScore;
 
-    // Evidence一致検証
-    const evidenceValid = validateEvidenceArray(item.evidence, transcript);
-    if (!evidenceValid) {
-      console.debug(`❌ Q${index + 1}: evidence検証失敗 → unansweredへダウンシフト`, {
+      // Evidence一致検証
+      const evidenceValid = validateEvidenceArray(item.evidence, transcript);
+      if (!evidenceValid) {
+        console.debug(`❌ Q${index + 1}: evidence検証失敗 → unansweredへダウンシフト`, {
+          evidenceCount: item.evidence.length,
+          quality: Math.round(quality.qualityScore * 100) + '%'
+        });
+        downgradedCount++;
+        return {
+          ...item,
+          status: 'unanswered' as const,
+          answer: null,
+          evidence: []
+        };
+      }
+      
+      console.debug(`✅ Q${index + 1}: evidence検証成功`, {
         evidenceCount: item.evidence.length,
         quality: Math.round(quality.qualityScore * 100) + '%'
       });
-      downgradedCount++;
-      return {
-        ...item,
-        status: 'unanswered' as const,
-        answer: null,
-        evidence: []
-      };
+    } else {
+      console.debug(`✅ Q${index + 1}: strictEvidence=false のため検証スキップ`);
     }
-
-    console.debug(`✅ Q${index + 1}: evidence検証成功`, {
-      evidenceCount: item.evidence.length,
-      quality: Math.round(quality.qualityScore * 100) + '%'
-    });
 
     return {
       ...item,

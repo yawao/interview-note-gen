@@ -54,6 +54,7 @@ export interface InterviewExtractionOptions {
   strict_no_autofill: boolean
   exact_length_output: boolean
   unanswered_token: string
+  strictEvidence?: boolean // evidence必須チェックのトグル（デフォルト：true）
 }
 
 export type ArticleType = 'BLOG_POST' | 'HOW_TO_GUIDE';

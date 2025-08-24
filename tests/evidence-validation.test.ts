@@ -286,6 +286,31 @@ describe('Evidence検証システム - 「回答しているのに未回答に�
       expect(result.items[1].status).toBe('unanswered'); // ✅ evidenceが空 → unanswered
       expect(result.metadata.downgradedCount).toBe(2); // ✅ 「回答しているのに未回答になる」が正しく防げている
     });
+    
+    it('[受け入れテスト] strictEvidence:false → 回答テキスト保持', () => {
+      const testData = {
+        items: [
+          { question: '創業について', answer: '2020年に起業しました', status: 'answered' as const, evidence: [] },
+          { question: '事業について', answer: 'SaaS事業です', status: 'answered' as const, evidence: ['短い'] }
+        ],
+        questions: [
+          { id: 'q1', content: '創業について', order: 1, projectId: 'test', createdAt: new Date() },
+          { id: 'q2', content: '事業について', order: 2, projectId: 'test', createdAt: new Date() }
+        ],
+        transcript: '何らかのトランスクリプト',
+        strictEvidence: false
+      };
+      
+      const result = normalizeInterviewSummary(testData);
+      
+      // 受け入れ基準：strictEvidence=false時は回答テキスト保持
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0].status).toBe('answered'); // evidenceが空でもanswered保持
+      expect(result.items[0].answer).toBe('2020年に起業しました'); // 回答テキスト保持
+      expect(result.items[1].status).toBe('answered'); // 短いevidenceでもanswered保持  
+      expect(result.items[1].answer).toBe('SaaS事業です'); // 回答テキスト保持
+      expect(result.metadata.downgradedCount).toBe(0); // ダウンシフトなし
+    });
   });
 });
 

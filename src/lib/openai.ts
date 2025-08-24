@@ -398,7 +398,8 @@ export const extractStructuredInterview = async (
             projectId: 'fallback',
             createdAt: new Date()
           })),
-          transcript: transcription
+          transcript: transcription,
+          strictEvidence: options.strictEvidence ?? true
         });
         
         return {
@@ -428,7 +429,8 @@ export const extractStructuredInterview = async (
           projectId: 'extract',
           createdAt: new Date()
         })),
-        transcript: transcription
+        transcript: transcription,
+        strictEvidence: options.strictEvidence ?? true
       })
       
       return {
@@ -496,7 +498,8 @@ export const extractStructuredInterview = async (
           projectId: 'repaired',
           createdAt: new Date()
         })),
-        transcript: transcription
+        transcript: transcription,
+        strictEvidence: options.strictEvidence ?? true
       })
       
       return {
@@ -522,7 +525,8 @@ export const extractStructuredInterview = async (
         projectId: 'fallback',
         createdAt: new Date()
       })),
-      transcript: transcription
+      transcript: transcription,
+      strictEvidence: options.strictEvidence ?? true
     })
 
     const debugInfo = generateDebugInfo(
@@ -555,7 +559,8 @@ export const extractStructuredInterview = async (
         projectId: 'error-fallback',
         createdAt: new Date()
       })),
-      transcript: transcription
+      transcript: transcription,
+      strictEvidence: options.strictEvidence ?? true
     })
     
     return {

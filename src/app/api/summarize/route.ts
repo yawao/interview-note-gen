@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
     const structuredResult = await extractStructuredInterview(transcription, normalizedQA.questions, {
       strict_no_autofill: true,
       exact_length_output: true,
-      unanswered_token: '未回答'
+      unanswered_token: '未回答',
+      strictEvidence: false
     })
     
     // 3) InterviewPayloadを組み立て

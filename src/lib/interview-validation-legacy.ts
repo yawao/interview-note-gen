@@ -3,9 +3,17 @@
 
 import { StructuredInterviewSummary, InterviewItem, InterviewExtractionOptions } from '@/types'
 
+// 簡易版のevidenceチェック（実際の実装では別ファイルのvalidateEvidenceを使用）
+function validateEvidence(evidence: string[], transcript: string): boolean {
+  if (!evidence || evidence.length === 0) return false
+  // 簡単なチェック：evidenceのいずれかがtranscriptに含まれているか
+  return evidence.some(ev => ev && transcript.includes(ev))
+}
+
 export function validateInterviewSummary(
   data: any,
-  expectedCount: number
+  expectedCount: number,
+  opt: { strictEvidence?: boolean } = { strictEvidence: true }
 ): { isValid: boolean; violations: string[] } {
   const violations: string[] = []
   
@@ -20,17 +28,30 @@ export function validateInterviewSummary(
   
   for (let i = 0; i < data.items.length; i++) {
     const item = data.items[i]
+    const prefix = `items[${i}]`
     
     if (!item.question || typeof item.question !== 'string') {
-      violations.push(`items[${i}]: questionが無効です`)
+      violations.push(`${prefix}: questionが無効です`)
     }
     
     if (item.status !== 'answered' && item.status !== 'unanswered') {
-      violations.push(`items[${i}]: statusが無効です`)
+      violations.push(`${prefix}: statusが無効です`)
     }
     
     if (!Array.isArray(item.evidence)) {
-      violations.push(`items[${i}]: evidenceが配列ではありません`)
+      violations.push(`${prefix}: evidenceが配列ではありません`)
+    }
+    
+    // strictEvidenceがtrueの時のみevidence必須チェック
+    if (item.status === 'answered') {
+      if (item.answer === null || item.answer === '') {
+        violations.push(`${prefix}: status=answered なのに answer が空です`)
+      }
+      if (opt.strictEvidence !== false) {
+        if (!item.evidence || item.evidence.length === 0) {
+          violations.push(`${prefix}: status=answered なのに evidence が空です`)
+        }
+      }
     }
   }
   
@@ -47,7 +68,8 @@ export function normalizeInterviewSummary(
   options: InterviewExtractionOptions = {
     strict_no_autofill: true,
     exact_length_output: true,
-    unanswered_token: '未回答'
+    unanswered_token: '未回答',
+    strictEvidence: true
   }
 ): StructuredInterviewSummary {
   const items: InterviewItem[] = []
@@ -67,14 +89,23 @@ export function normalizeInterviewSummary(
       }
 
       if (item.status === 'answered') {
-        if (!item.answer || 
-            item.evidence.length === 0 || 
-            !validateEvidence(item.evidence, transcript)) {
+        // 回答が空は常にNG
+        if (!item.answer) {
           item = {
             question: question,
             answer: null,
             status: 'unanswered',
             evidence: []
+          }
+        } else if (options.strictEvidence !== false) {
+          // strictEvidenceがtrueの時だけevidence不足/不一致で落とす
+          if (item.evidence.length === 0 || !validateEvidence(item.evidence, transcript)) {
+            item = {
+              question: question,
+              answer: null,
+              status: 'unanswered',
+              evidence: []
+            }
           }
         }
       }
@@ -98,14 +129,6 @@ export function normalizeInterviewSummary(
   return { items }
 }
 
-export function validateEvidence(evidence: string[], transcript: string): boolean {
-  if (evidence.length === 0) return false
-  
-  return evidence.some(ev => {
-    if (!ev || ev.trim() === '') return false
-    return transcript.includes(ev.trim())
-  })
-}
 
 export function generateRepairPrompt(
   originalData: any,
