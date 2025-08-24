@@ -145,7 +145,28 @@ export function validateArticleStructure(article: StructuredArticle): ArticleVal
 }
 
 /**
- * 記事品質の詳細分析（崩れパターンの検出）
+ * 章構成ホワイトリスト（Claude Code整形指示対応）
+ */
+export const SECTION_WHITELIST = [
+  '導入',
+  '背景と課題',
+  '着想とインプット収集',
+  '仮説整理と事業性評価', 
+  'MVP／PoCでの小規模検証',
+  'まとめ',
+  'FAQ',
+  'CTA'
+] as const
+
+export const REQUIRED_SECTIONS = [
+  '導入',
+  '背景と課題',
+  'MVP／PoCでの小規模検証',
+  'まとめ'
+] as const
+
+/**
+ * 記事品質の詳細分析（崩れパターンの検出＋章構成チェック）
  */
 export function analyzeArticleQuality(article: StructuredArticle): ArticleQualityMetrics {
   let structureScore = 100
@@ -406,7 +427,120 @@ function deduplicateH2(sections: { h2: string; body: string }[]): { h2: string; 
 }
 
 /**
- * 記事生成結果の最終検証（受け入れ基準チェック）
+ * 章構成ホワイトリスト検証
+ */
+export function validateSectionWhitelist(article: StructuredArticle): {
+  isValid: boolean
+  invalidSections: string[]
+  missingSections: string[]
+  sectionOrderValid: boolean
+} {
+  const invalidSections: string[] = []
+  const missingSections: string[] = []
+  const presentSections = article.sections?.map(s => s.h2) || []
+  
+  // ホワイトリスト外の章をチェック
+  for (const section of presentSections) {
+    if (!SECTION_WHITELIST.includes(section as any)) {
+      invalidSections.push(section)
+    }
+  }
+  
+  // 必須章の不足をチェック  
+  for (const required of REQUIRED_SECTIONS) {
+    if (!presentSections.includes(required)) {
+      missingSections.push(required)
+    }
+  }
+  
+  // 章順序のチェック（簡易版：必須章が正しい相対順序か）
+  const requiredIndices = REQUIRED_SECTIONS.map(req => 
+    presentSections.findIndex(s => s === req)
+  ).filter(idx => idx >= 0)
+  
+  const sectionOrderValid = requiredIndices.length <= 1 || 
+    requiredIndices.every((idx, i, arr) => i === 0 || idx > arr[i - 1])
+  
+  return {
+    isValid: invalidSections.length === 0 && missingSections.length === 0 && sectionOrderValid,
+    invalidSections,
+    missingSections, 
+    sectionOrderValid
+  }
+}
+
+/**
+ * Claude Code整形指示準拠の自己検査機能
+ */
+export function performSelfValidation(article: StructuredArticle): {
+  duplicate_h2: boolean
+  inline_h2_leak: boolean  
+  broken_sentence: boolean
+  missing_required: string[]
+  faq_cta_dup: boolean
+  dangling_h2: string[]
+  repairs_applied: string[]
+} {
+  const repairs_applied: string[] = []
+  
+  // duplicate_h2: 同名H2が複数ないか
+  const h2Map = new Map<string, number>()
+  const presentH2s = article.sections?.map(s => s.h2) || []
+  presentH2s.forEach(h2 => {
+    h2Map.set(h2, (h2Map.get(h2) || 0) + 1)
+  })
+  const duplicate_h2 = Array.from(h2Map.values()).some(count => count > 1)
+  
+  // inline_h2_leak: 行中に「[^\\n]##\\s」が存在しないか
+  let inline_h2_leak = false
+  article.sections?.forEach(section => {
+    if (section.body && /[^\n]##\s/.test(section.body)) {
+      inline_h2_leak = true
+    }
+  })
+  if (article.lead && /[^\n]##\s/.test(article.lead)) {
+    inline_h2_leak = true
+  }
+  
+  // broken_sentence: 各見出し直前の文末が句点で終わっているか（bodyの末尾チェック）
+  let broken_sentence = false
+  article.sections?.forEach(section => {
+    if (section.body && !/[。.]$/.test(section.body.trim())) {
+      broken_sentence = true
+    }
+  })
+  
+  // missing_required: 必須章が欠けていないか
+  const whitelistCheck = validateSectionWhitelist(article)
+  const missing_required = whitelistCheck.missingSections
+  
+  // faq_cta_dup: FAQ/CTAが二重になっていないか
+  const faqCount = presentH2s.filter(h2 => h2 === 'FAQ').length
+  const ctaCount = presentH2s.filter(h2 => h2 === 'CTA').length
+  const faq_cta_dup = faqCount > 1 || ctaCount > 1
+  
+  // dangling_h2: 本文が1文以下のH2が無いか  
+  const dangling_h2: string[] = []
+  article.sections?.forEach(section => {
+    const sentenceCount = (section.body?.match(/[。.]/g) || []).length
+    if (sentenceCount < 2) {
+      dangling_h2.push(section.h2)
+    }
+  })
+  
+  return {
+    duplicate_h2,
+    inline_h2_leak,
+    broken_sentence,
+    missing_required,
+    faq_cta_dup,
+    dangling_h2,
+    repairs_applied
+  }
+}
+
+/**
+ * 記事生成結果の最終検証（受け入れ基準チェック＋Claude Code整形指示準拠）
  */
 export function validateFinalArticle(article: StructuredArticle): {
   passed: boolean
@@ -416,26 +550,38 @@ export function validateFinalArticle(article: StructuredArticle): {
     duplicateH2Count: number
     badHeadingsCount: number
     truncationCount: number
+    whitelistCompliant: boolean
+    selfValidationPassed: boolean
   }
   issues: string[]
+  selfValidation: ReturnType<typeof performSelfValidation>
 } {
   const validation = validateArticleStructure(article)
   const quality = analyzeArticleQuality(article)
+  const whitelistCheck = validateSectionWhitelist(article)
+  const selfValidation = performSelfValidation(article)
   const issues: string[] = []
   
   // 受け入れ基準のチェック
   const structureCompliant = validation.isValid
-  const sectionCountValid = validation.stats.sectionCount >= 3 && validation.stats.sectionCount <= 5
+  const sectionCountValid = validation.stats.sectionCount >= 3 && validation.stats.sectionCount <= 6 // Claude Code対応で最大6に拡張
   const duplicateH2Count = quality.duplicateIssues.length
   const badHeadingsCount = quality.headingIssues.length
   const truncationCount = quality.truncationIssues.length
+  const whitelistCompliant = whitelistCheck.isValid
+  const selfValidationPassed = !selfValidation.duplicate_h2 && 
+                               !selfValidation.inline_h2_leak && 
+                               !selfValidation.broken_sentence && 
+                               selfValidation.missing_required.length === 0 && 
+                               !selfValidation.faq_cta_dup && 
+                               selfValidation.dangling_h2.length === 0
   
   if (!structureCompliant) {
     issues.push(...validation.errors)
   }
   
   if (!sectionCountValid) {
-    issues.push(`Section count ${validation.stats.sectionCount} is outside valid range (3-5)`)
+    issues.push(`Section count ${validation.stats.sectionCount} is outside valid range (3-6)`)
   }
   
   if (duplicateH2Count > 0) {
@@ -450,11 +596,35 @@ export function validateFinalArticle(article: StructuredArticle): {
     issues.push(`Found ${truncationCount} truncation issues`)
   }
   
+  if (!whitelistCompliant) {
+    if (whitelistCheck.invalidSections.length > 0) {
+      issues.push(`Invalid sections not in whitelist: ${whitelistCheck.invalidSections.join(', ')}`)
+    }
+    if (whitelistCheck.missingSections.length > 0) {
+      issues.push(`Missing required sections: ${whitelistCheck.missingSections.join(', ')}`)
+    }
+    if (!whitelistCheck.sectionOrderValid) {
+      issues.push('Section order is invalid')
+    }
+  }
+  
+  if (!selfValidationPassed) {
+    issues.push('Claude Code self-validation failed')
+    if (selfValidation.duplicate_h2) issues.push('Self-check: duplicate H2 found')
+    if (selfValidation.inline_h2_leak) issues.push('Self-check: inline ## leak detected')
+    if (selfValidation.broken_sentence) issues.push('Self-check: broken sentence endings')
+    if (selfValidation.missing_required.length > 0) issues.push(`Self-check: missing required sections: ${selfValidation.missing_required.join(', ')}`)
+    if (selfValidation.faq_cta_dup) issues.push('Self-check: FAQ/CTA duplication')
+    if (selfValidation.dangling_h2.length > 0) issues.push(`Self-check: dangling H2s: ${selfValidation.dangling_h2.join(', ')}`)
+  }
+  
   const passed = structureCompliant && 
                  sectionCountValid && 
                  duplicateH2Count === 0 && 
                  badHeadingsCount === 0 && 
-                 truncationCount === 0
+                 truncationCount === 0 &&
+                 whitelistCompliant &&
+                 selfValidationPassed
   
   return {
     passed,
@@ -463,8 +633,11 @@ export function validateFinalArticle(article: StructuredArticle): {
       sectionCountValid,
       duplicateH2Count,
       badHeadingsCount,
-      truncationCount
+      truncationCount,
+      whitelistCompliant,
+      selfValidationPassed
     },
-    issues
+    issues,
+    selfValidation
   }
 }
