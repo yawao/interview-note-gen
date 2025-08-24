@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateArticleDraft, generateOutlineAndMeta, generateArticleContent } from '@/lib/openai'
 import { enforcePhase0, extractTitleFromMarkdown, buildTitleFallback, buildMetaDescription } from '@/lib/phase0'
+import { rewriteStructure } from '@/lib/rewrite'
 import { ArticleType } from '@/types'
 
 export async function POST(req: NextRequest) {
@@ -78,10 +79,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Apply structure rewrite to fix composition issues
+    console.log('Applying structure rewrite...')
+    let md = await rewriteStructure({ 
+      md: articleContent.trim(), 
+      articleType: selectedArticleType 
+    })
+    
     // Apply Phase 0 enforcement to ensure content quality
     console.log('Applying Phase 0 enforcement...')
     const enforcedContent = await enforcePhase0({
-      md: articleContent.trim(),
+      md,
       articleType: selectedArticleType,
       theme: project.theme
     })
