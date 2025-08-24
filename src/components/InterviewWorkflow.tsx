@@ -90,58 +90,58 @@ export default function InterviewWorkflow() {
     setCurrentStep('complete')
   }
 
-  // 非表示化のため一時コメント（将来復活用）
-  // const handleArticleGenerated = (newArticle: Article) => {
-  //   setArticle(newArticle)
-  //   setCurrentStep('complete')
-  // }
+  const handleArticleGenerated = (newArticle: Article) => {
+    setArticle(newArticle)
+    // 記事生成後もcompleteステップに留まる（記事表示に切り替え）
+    setCurrentStep('complete')
+  }
 
-  // const generateArticle = async () => {
-  //   if (!project || !combinedTranscription) return
+  const generateArticle = async () => {
+    if (!project || !combinedTranscription) return
 
-  //   setIsGeneratingArticle(true)
+    setIsGeneratingArticle(true)
 
-  //   try {
-  //     // 記事生成処理（既存のSummarizer相当）
-  //     // 1. 要約生成
-  //     const summaryResponse = await fetch('/api/summarize', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({ projectId: project.id }),
-  //     })
+    try {
+      // 記事生成処理（既存のSummarizer相当）
+      // 1. 要約生成
+      const summaryResponse = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ projectId: project.id }),
+      })
 
-  //     if (!summaryResponse.ok) {
-  //       throw new Error('要約の生成に失敗しました')
-  //     }
+      if (!summaryResponse.ok) {
+        throw new Error('要約の生成に失敗しました')
+      }
 
-  //     // 2. 記事生成
-  //     const articleResponse = await fetch('/api/draft', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({
-  //         projectId: project.id,
-  //         articleType: selectedArticleType,
-  //         language: 'ja'
-  //       }),
-  //     })
+      // 2. 記事生成
+      const articleResponse = await fetch('/api/draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          projectId: project.id,
+          articleType: selectedArticleType || 'BLOG_POST', // デフォルト値を設定
+          language: 'ja'
+        }),
+      })
 
-  //     if (!articleResponse.ok) {
-  //       throw new Error('記事の生成に失敗しました')
-  //     }
+      if (!articleResponse.ok) {
+        throw new Error('記事の生成に失敗しました')
+      }
 
-  //     const generatedArticle: Article = await articleResponse.json()
-  //     handleArticleGenerated(generatedArticle)
-  //   } catch (error) {
-  //     console.error('記事生成エラー:', error)
-  //     alert('記事の生成に失敗しました。もう一度お試しください。')
-  //   } finally {
-  //     setIsGeneratingArticle(false)
-  //   }
-  // }
+      const generatedArticle: Article = await articleResponse.json()
+      handleArticleGenerated(generatedArticle)
+    } catch (error) {
+      console.error('記事生成エラー:', error)
+      alert('記事の生成に失敗しました。もう一度お試しください。')
+    } finally {
+      setIsGeneratingArticle(false)
+    }
+  }
 
   const resetWorkflow = () => {
     setCurrentStep('setup')
@@ -373,17 +373,124 @@ export default function InterviewWorkflow() {
       
       case 'complete':
         return (
-          <div className="max-w-4xl mx-auto px-4 py-8 text-center">
-            <h2 className="text-2xl font-bold text-green-600">録音が完了しました。</h2>
-            
-            <div className="mt-8">
-              <button
-                onClick={resetWorkflow}
-                className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
-              >
-                新しいインタビューを開始
-              </button>
-            </div>
+          <div className="max-w-4xl mx-auto px-4 py-8">
+            {!article ? (
+              // 記事未生成時: 録音完了 + 記事生成ボタン
+              <div className="text-center space-y-6">
+                <div className="space-y-4">
+                  <div className="text-6xl mb-4">✓</div>
+                  <h2 className="text-3xl font-bold text-green-600">録音が完了しました。</h2>
+                  <p className="text-gray-600">インタビューの録音と文字起こしが完了し、記事作成の準備が整いました。</p>
+                </div>
+                
+                {project && combinedTranscription && (
+                  <div className="space-y-4">
+                    <button
+                      onClick={generateArticle}
+                      disabled={isGeneratingArticle}
+                      className="bg-green-600 text-white px-8 py-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center space-x-3 mx-auto text-lg"
+                    >
+                      {isGeneratingArticle ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>記事を生成中...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>📝</span>
+                          <span>記事を作成する</span>
+                        </>
+                      )}
+                    </button>
+                    <p className="text-sm text-gray-500">録音内容からブログ記事を自動生成します</p>
+                  </div>
+                )}
+                
+                <div className="mt-8">
+                  <button
+                    onClick={resetWorkflow}
+                    className="bg-gray-600 text-white px-6 py-3 rounded-md hover:bg-gray-700"
+                  >
+                    新しいインタビューを開始
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // 記事生成済み時: 記事表示 + ダウンロード
+              <div className="space-y-8">
+                <div className="text-center">
+                  <div className="text-6xl mb-4">🎉</div>
+                  <h2 className="text-3xl font-bold text-green-600 mb-4">記事が完成しました！</h2>
+                  <p className="text-gray-600">インタビューから高品質な記事を生成しました。</p>
+                </div>
+
+                {/* 記事表示 */}
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                  <div className="border-b p-4 bg-gray-50">
+                    <h4 className="text-xl font-bold">{article.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1">
+                      生成日: {new Date(article.createdAt).toLocaleDateString('ja-JP')} • 
+                      フォーマット: {article.format}
+                    </p>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="prose max-w-none">
+                      <div 
+                        className="whitespace-pre-wrap text-sm bg-white p-4 rounded border leading-relaxed max-h-96 overflow-y-auto"
+                        style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+                      >
+                        {article.content}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ダウンロードアクション */}
+                  <div className="border-t p-4 bg-gray-50">
+                    <h5 className="text-sm font-medium text-gray-700 mb-3">ダウンロード:</h5>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <a
+                        href={`/api/download/${article.id}?format=txt`}
+                        download
+                        className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 text-sm text-center"
+                      >
+                        📄 TXT
+                      </a>
+                      <a
+                        href={`/api/download/${article.id}?format=markdown`}
+                        download
+                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-sm text-center"
+                      >
+                        📝 Markdown
+                      </a>
+                      <a
+                        href={`/api/download/${article.id}?format=docx`}
+                        download
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm text-center"
+                      >
+                        📃 Word
+                      </a>
+                      <button
+                        onClick={() => alert('PDF機能は現在メンテナンス中です')}
+                        className="bg-gray-400 text-white px-4 py-2 rounded-md cursor-not-allowed text-sm"
+                        disabled
+                      >
+                        📕 PDF (メンテナンス中)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <button
+                    onClick={resetWorkflow}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700"
+                  >
+                    新しいインタビューを開始
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )
         
