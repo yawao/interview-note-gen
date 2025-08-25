@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { generateArticleDraft, generateOutlineAndMeta, generateArticleContent } from '@/lib/openai'
+import { generateArticleDraft, generateOutlineAndMeta, generateArticleContent, generateStructuredArticle } from '@/lib/openai'
+import { renderMarkdownFromStructured, finalGuard } from '@/lib/render-markdown'
 import { enforcePhase0, extractTitleFromMarkdown, buildTitleFallback, buildMetaDescription } from '@/lib/phase0'
 import { rewriteStructure } from '@/lib/rewrite'
 import { ArticleType } from '@/types'
+import { ArticleSection } from '@/types/article'
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,8 +56,9 @@ export async function POST(req: NextRequest) {
     const selectedArticleType: ArticleType = articleType || 'BLOG_POST'
     const selectedLanguage: 'ja' | 'en' = language || 'ja'
 
-    // Generate outline and meta based on article type
-    const { outline, meta } = await generateOutlineAndMeta(
+    // Writesonic-style: Generate JSON structure first
+    console.log('Generating structured article JSON...')
+    const structuredArticle = await generateStructuredArticle(
       selectedArticleType,
       project.theme,
       project.interviewee,
@@ -63,14 +66,13 @@ export async function POST(req: NextRequest) {
       selectedLanguage
     )
 
-    // Generate article content based on outline and meta
-    const articleContent = await generateArticleContent(
-      selectedArticleType,
-      project.theme,
-      outline,
-      meta,
-      selectedLanguage
-    )
+    // Server-side: Convert JSON to Markdown deterministically
+    console.log('Converting JSON to Markdown...')
+    let articleContent = renderMarkdownFromStructured(structuredArticle)
+    
+    // Apply final mechanical corrections
+    console.log('Applying final guard corrections...')
+    articleContent = finalGuard(articleContent)
     
     if (!articleContent || articleContent.trim() === '') {
       return NextResponse.json(
@@ -114,8 +116,8 @@ export async function POST(req: NextRequest) {
         articleType: selectedArticleType,
         language: selectedLanguage,
         status: 'DRAFT',
-        outline: JSON.stringify(outline),
-        meta: JSON.stringify(meta),
+        outline: JSON.stringify({ sections: structuredArticle.sections.map((s: ArticleSection, i: number) => ({ id: `section-${i}`, heading: s.h2, order: i + 1 })) }),
+        meta: JSON.stringify({ structuredData: structuredArticle }),
         projectId,
       },
     })

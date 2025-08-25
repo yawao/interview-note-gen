@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { ArticleType, BlogMeta, HowToMeta, OutlineSection, BLOG_OUTLINE_SKELETON, HOWTO_OUTLINE_SKELETON, StructuredInterviewSummary, InterviewExtractionOptions } from '@/types'
+import { StructuredArticle, structuredArticleSchema } from '@/types/article'
 import { normalizeInterviewSummary } from './interview-normalization'
 import { validateInterviewSchema, generateRepairPrompt, extractJsonFromOutput, logValidationResult } from './interview-schema'
 import { validateInterviewSummary, generateDebugInfo } from '@/lib/interview-validation'
@@ -851,6 +852,110 @@ ${transcript}
       outline: fallbackOutline,
       meta: fallbackMeta
     }
+  }
+}
+
+/**
+ * Writesonic-style structured article generation
+ * LLM generates JSON only, server-side renders Markdown
+ */
+export const generateStructuredArticle = async (
+  articleType: ArticleType,
+  theme: string,
+  interviewee: string,
+  transcription: string,
+  language: 'ja' | 'en' = 'ja'
+): Promise<StructuredArticle> => {
+  try {
+    const systemPrompt = `あなたは日本語記事の構造化エクスパートです。与えられたインタビュー内容から、JSON構造の記事データのみを生成します。Markdownは一切使わず、純粋なデータ構造のみを出力してください。
+
+記事構成（必須順序）:
+1. 導入（背景説明）
+2. 背景と課題（問題提起）  
+3. 事例/分析（具体的な取り組み・結果）
+4. まとめ（結論・示唆）
+
+各セクションの要件:
+- 400-600文字程度の本文
+- 具体的な数値データを含む
+- 固有名詞を含む  
+- 箇条書き要素を含む
+- アクション指向の内容
+
+FAQとCTAは適切な場合のみ追加してください。`
+
+    const userPrompt = `Article Type: ${articleType}
+Theme: ${theme}  
+Interviewee: ${interviewee}
+Language: ${language}
+
+Transcription:
+${transcription}
+
+JSON出力要件:
+- title: 記事タイトル（30-40文字）
+- lead: リード文（3-4行の概要）
+- sections: 配列[{h2: "見出し", body: "本文"}] （3-5セクション）
+- faq: 配列[{q: "質問", a: "回答"}] （オプション）
+- cta: 行動喚起文（オプション）
+
+注意: JSON構造のデータのみを返してください。前置き・コードブロック・説明文は不要です。`
+
+    console.log('Calling OpenAI API for structured article generation...')
+    
+    const completion = await openai.responses.create({
+      model: "gpt-5-mini",
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      max_output_tokens: 8000,
+    })
+
+    const content = completion.output_text || ''
+    if (!content) {
+      console.error('No content in OpenAI response for generateStructuredArticle')
+      throw new Error('OpenAI API から応答がありませんでした')
+    }
+
+    try {
+      // Clean content by removing potential markdown code blocks
+      let cleanedContent = content.trim()
+      if (cleanedContent.startsWith('```json')) {
+        cleanedContent = cleanedContent.replace(/^```json\n?/, '')
+      }
+      if (cleanedContent.startsWith('```')) {
+        cleanedContent = cleanedContent.replace(/^```\n?/, '')
+      }
+      if (cleanedContent.endsWith('```')) {
+        cleanedContent = cleanedContent.replace(/\n?```$/, '')
+      }
+      
+      const structuredArticle: StructuredArticle = JSON.parse(cleanedContent)
+      
+      // Basic validation
+      if (!structuredArticle.title || !structuredArticle.lead || !structuredArticle.sections) {
+        throw new Error('Required fields missing in generated article structure')
+      }
+      
+      if (structuredArticle.sections.length < 3) {
+        throw new Error('Article must have at least 3 sections')
+      }
+
+      console.log('Structured article generated successfully')
+      console.log('Sections:', structuredArticle.sections.length)
+      console.log('FAQ items:', structuredArticle.faq?.length || 0)
+      console.log('Has CTA:', !!structuredArticle.cta)
+      
+      return structuredArticle
+    } catch (parseError) {
+      console.error('Failed to parse structured article JSON:', parseError)
+      console.error('Raw content:', content)
+      throw new Error('生成された記事データの解析に失敗しました')
+    }
+  } catch (error) {
+    console.error('OpenAI API error in generateStructuredArticle:', error)
+    throw new Error(`構造化記事の生成に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`)
   }
 }
 
