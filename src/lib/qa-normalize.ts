@@ -1,6 +1,8 @@
 // Q/A正規化ユーティリティ
 // 配列を真実のソースとし、最大7件制限＋未回答補完禁止
 
+import { adaptViolations } from './interview-validation'
+
 export type QAInput = {
   questions: string[];
   answers: string[];               // ユーザ回答。空は空のまま残す
@@ -150,7 +152,7 @@ export function validateQACount(
   
   return {
     isValid: violations.length === 0,
-    violations,
+    violations: adaptViolations(violations),
     recommendations
   };
 }

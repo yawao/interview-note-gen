@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { normalizeText, validateEvidence, validateEvidenceArray, analyzeEvidenceQuality } from '../src/lib/evidence-validation'
+import { validateEvidence } from '@/lib/interview-validation'
+import { normalizeText, validateEvidenceArray, analyzeEvidenceQuality } from '../src/lib/evidence-validation'
 import { normalizeInterviewSummary } from '../src/lib/interview-normalization'
 import { validateInterviewSchema } from '../src/lib/interview-schema'
 

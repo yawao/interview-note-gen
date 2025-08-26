@@ -486,7 +486,7 @@ export const extractStructuredInterview = async (
     // 修復後の再検証
     const repairValidation = repairedData ? 
       validateInterviewSummary(repairedData, questions.length) : 
-      { isValid: false, violations: ['JSON パース失敗'] }
+      { isValid: false, violations: adaptViolations(['JSON パース失敗']) }
 
     if (repairValidation.isValid) {
       console.log('✅ 修復成功、バリデーション合格')

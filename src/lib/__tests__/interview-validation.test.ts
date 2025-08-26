@@ -5,10 +5,10 @@
 
 import { 
   validateInterviewSummary, 
-  normalizeInterviewSummary, 
-  validateEvidence,
+  normalizeInterviewSummary,
   generateRepairPrompt 
 } from '../interview-validation'
+import { validateEvidence } from '@/lib/interview-validation'
 import { StructuredInterviewSummary, InterviewItem } from '@/types'
 
 describe('Interview Validation Tests', () => {

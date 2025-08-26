@@ -2,6 +2,7 @@
 // 既存のopenai.tsとの後方互換性維持
 
 import { StructuredInterviewSummary, InterviewItem, InterviewExtractionOptions } from '@/types'
+import { adaptViolations } from './interview-validation'
 
 // 簡易版のevidenceチェック（実際の実装では別ファイルのvalidateEvidenceを使用）
 function validateEvidence(evidence: string[], transcript: string): boolean {
@@ -19,7 +20,7 @@ export function validateInterviewSummary(
   
   if (!data || !data.items || !Array.isArray(data.items)) {
     violations.push('items配列が存在しません')
-    return { isValid: false, violations }
+    return { isValid: false, violations: adaptViolations(violations) }
   }
   
   if (data.items.length !== expectedCount) {
@@ -55,9 +56,11 @@ export function validateInterviewSummary(
     }
   }
   
+  // フラット化＋アダプト（ネスト配列対策）
+  const flat = ([] as string[]).concat(...violations) // [Array(1)] → ['...']
   return {
     isValid: violations.length === 0,
-    violations
+    violations: adaptViolations(flat)
   }
 }
 
