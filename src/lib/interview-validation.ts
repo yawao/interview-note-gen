@@ -107,19 +107,7 @@ export function validateInterviewSchema(rawResponse: string, expectedCount: numb
     errors.push('evidence: Required')
   }
 
-  // ビジネスロジック違反（Q1… の文言）チェック
-  if (Array.isArray(data?.items)) {
-    const items = data.items as any[]
-    items.forEach((it, idx) => {
-      const qNo = idx + 1
-      if (it?.status === 'answered' && (!Array.isArray(it?.evidence) || it.evidence.length === 0)) {
-        errors.push(`Q${qNo}: answered項目にevidenceが不足`)
-      }
-      if (it?.status === 'unanswered' && it?.answer != null && String(it.answer).trim() !== '') {
-        errors.push(`Q${qNo}: unanswered項目でanswerがnullではない`)
-      }
-    })
-  }
+  // ビジネスロジック違反チェックは businessValidate 関数に分離
 
   // ★ 「有効ケース」なのに evidence を理由に落ちないよう、errors に 'evidence' 由来があれば強調
   if (!errors.length && Array.isArray(data?.items)) {
@@ -133,6 +121,25 @@ export function validateInterviewSchema(rawResponse: string, expectedCount: numb
   }
 
   return { isValid: errors.length === 0, errors }
+}
+
+/**
+ * ビジネスロジック検証（構造検証から分離）
+ */
+export function businessValidate(items: any[]): string[] {
+  const violations: string[] = []
+  
+  items.forEach((it, idx) => {
+    const qNo = idx + 1
+    if (it?.status === 'answered' && (!Array.isArray(it?.evidence) || it.evidence.length === 0)) {
+      violations.push(`Q${qNo}: answered項目にevidenceが不足`)
+    }
+    if (it?.status === 'unanswered' && it?.answer != null && String(it.answer).trim() !== '') {
+      violations.push(`Q${qNo}: unanswered項目でanswerがnullではない`)
+    }
+  })
+  
+  return violations
 }
 
 export function normalizeText(input: string): string {
@@ -150,8 +157,7 @@ export function normalizeText(input: string): string {
   // 句読点の前後空白を除去
   s = s.replace(/\s*、\s*/g, '、').replace(/\s*。\s*/g, '。')
 
-  // 連続句読点を1つに（念のため2回実行）
-  s = s.replace(/、{2,}/g, '、').replace(/。{2,}/g, '。')
+  // 連続句読点を1つに畳み込み
   s = s.replace(/、{2,}/g, '、').replace(/。{2,}/g, '。')
 
   // 連続空白→1つ、前後空白除去

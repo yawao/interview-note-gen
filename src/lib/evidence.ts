@@ -42,8 +42,13 @@ export function analyzeEvidence(evidences: string[], transcript: string): Eviden
     seen.add(e)
 
     total++
-    if (e.length < 8) { tooShort++; continue }
-    if (t.indexOf(e) === -1) { notFound++; continue }
+    // 優先順位: notFound > tooShort > valid（排他的評価）
+    if (t.indexOf(e) === -1) { 
+      notFound++; continue 
+    }
+    if (e.length < 8) { 
+      tooShort++; continue 
+    }
     valid++
   }
   const quality = total ? valid / total : 0

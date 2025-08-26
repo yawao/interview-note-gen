@@ -3,6 +3,7 @@ import { ArticleType, BlogMeta, HowToMeta, OutlineSection, BLOG_OUTLINE_SKELETON
 import { StructuredArticle, structuredArticleSchema } from '@/types/article'
 import { normalizeInterviewSummary } from './interview-normalization'
 import { validateInterviewSchema, generateRepairPrompt, extractJsonFromOutput, logValidationResult } from './interview-schema'
+import { businessValidate } from './interview-validation'
 import { validateInterviewSummary, generateDebugInfo } from '@/lib/interview-validation'
 
 if (!process.env.OPENAI_API_KEY) {

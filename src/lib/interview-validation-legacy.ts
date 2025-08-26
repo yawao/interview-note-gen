@@ -2,7 +2,7 @@
 // 既存のopenai.tsとの後方互換性維持
 
 import { StructuredInterviewSummary, InterviewItem, InterviewExtractionOptions } from '@/types'
-import { adaptViolations } from './interview-validation'
+import { adaptViolations, businessValidate } from './interview-validation'
 
 // 簡易版のevidenceチェック（実際の実装では別ファイルのvalidateEvidenceを使用）
 function validateEvidence(evidence: string[], transcript: string): boolean {
@@ -54,6 +54,12 @@ export function validateInterviewSummary(
         }
       }
     }
+  }
+  
+  // ビジネスロジック検証を統合
+  if (Array.isArray(data?.items)) {
+    const businessViolations = businessValidate(data.items)
+    violations.push(...businessViolations)
   }
   
   // フラット化＋アダプト（ネスト配列対策）
